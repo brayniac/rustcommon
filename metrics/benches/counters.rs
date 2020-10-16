@@ -53,5 +53,27 @@ fn u8_u8(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, u8_u8,);
+fn static_u8_u8(c: &mut Criterion) {
+    let metrics = Arc::new(
+        StaticMetricsBuilder::<AtomicU8, AtomicU8>::new()
+        .register(&StatU8::Alpha)
+        .add_output(&StatU8::Alpha, Output::Reading)
+        .register(&StatU8::Bravo)
+        .add_output(&StatU8::Bravo, Output::Reading)
+        .build()
+    );
+
+    let mut group = c.benchmark_group("StaticMetrics/AtomicU8/AtomicU8/counter");
+
+    group.throughput(Throughput::Elements(1));
+    let now = Instant::now();
+    group.bench_function("no_summary/record", |b| {
+        b.iter(|| metrics.record_counter(&StatU8::Alpha, now, 255))
+    });
+    group.bench_function("stream/1000/record", |b| {
+        b.iter(|| metrics.record_counter(&StatU8::Bravo, now, 255))
+    });
+}
+
+criterion_group!(benches, u8_u8, static_u8_u8);
 criterion_main!(benches);

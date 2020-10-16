@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 crossbeam = "0.8.0"
 dashmap = "3.11.10"
+rustcommon-atomichash = { path = "../atomichash" }
 rustcommon-atomics = { path = "../atomics" }
 rustcommon-heatmap = { path = "../heatmap" }
 rustcommon-streamstats = { path = "../streamstats" }
