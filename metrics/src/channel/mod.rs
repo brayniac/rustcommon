@@ -2,6 +2,9 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use std::borrow::Borrow;
+use std::sync::Arc;
+use dashmap::DashSet;
 use crate::entry::Entry;
 use crate::outputs::ApproxOutput;
 use crate::summary::SummaryStruct;
@@ -9,8 +12,6 @@ use crate::traits::*;
 use crate::MetricsError;
 use crate::Output;
 use crate::Summary;
-use std::collections::HashSet;
-use std::sync::Mutex;
 
 use crossbeam::atomic::AtomicCell;
 use rustcommon_atomics::{Atomic, AtomicBool, Ordering};
@@ -31,8 +32,8 @@ where
     statistic: Entry<Value, Count>,
     empty: AtomicBool,
     reading: Value,
-    summary: Option<SummaryStruct<Value, Count>>,
-    outputs: Mutex<HashSet<ApproxOutput>>,
+    summary: AtomicCell<Arc<Option<SummaryStruct<Value, Count>>>>,
+    outputs: DashSet<ApproxOutput>,
 }
 
 impl<Value, Count> Channel<Value, Count>
@@ -51,7 +52,7 @@ where
             statistic: Entry::from(statistic),
             reading: Default::default(),
             refreshed: AtomicCell::new(Instant::now()),
-            summary,
+            summary: AtomicCell::new(Arc::new(summary)),
             outputs: Default::default(),
         }
     }
@@ -63,7 +64,7 @@ where
         value: <Value as Atomic>::Primitive,
         count: <Count as Atomic>::Primitive,
     ) -> Result<(), MetricsError> {
-        if let Some(summary) = &self.summary {
+        if let Some(summary) = unsafe { (*self.summary.as_ptr()).borrow() }  {
             summary.increment(time, value, count);
             Ok(())
         } else {
@@ -79,7 +80,7 @@ where
             return;
         }
         if !self.empty.load(Ordering::Relaxed) {
-            if let Some(summary) = &self.summary {
+            if let Some(summary) = unsafe { (*self.summary.as_ptr()).borrow() }  {
                 self.refreshed.store(time);
                 let v0 = self.reading.load(Ordering::Relaxed);
                 let dt = time - t0;
@@ -115,7 +116,7 @@ where
                 return;
             }
         }
-        if let Some(summary) = &self.summary {
+        if let Some(summary) = unsafe { (*self.summary.as_ptr()).borrow() }  {
             summary.increment(time, value, 1_u8.into());
         }
         self.reading.store(value, Ordering::Relaxed);
@@ -128,7 +129,7 @@ where
         &self,
         percentile: f64,
     ) -> Result<<Value as Atomic>::Primitive, MetricsError> {
-        if let Some(summary) = &self.summary {
+        if let Some(summary) = unsafe { (*self.summary.as_ptr()).borrow() }  {
             summary.percentile(percentile).map_err(MetricsError::from)
         } else {
             Err(MetricsError::NoSummary)
@@ -145,16 +146,22 @@ where
     }
 
     /// Set a summary to be used for an existing channel
-    pub fn set_summary(&mut self, summary: Summary<Value, Count>) {
+    pub fn set_summary(&self, summary: Summary<Value, Count>) {
         let summary = summary.build();
-        self.summary = Some(summary);
+        self.summary.swap(Arc::new(Some(summary)));
+        // self.summary = Some(summary);
     }
 
     /// Set a summary to be used for an existing channel
-    pub fn add_summary(&mut self, summary: Summary<Value, Count>) {
-        if self.summary.is_none() {
+    pub fn add_summary(&self, summary: Summary<Value, Count>) {
+        if let Some(_summary) = unsafe { (*self.summary.as_ptr()).borrow() } {
+            // do nothing
+        } else {
             self.set_summary(summary);
         }
+        // if (*self.summary.as_ptr()).borrow().is_none() {
+        //     self.set_summary(summary);
+        // }
     }
 
     pub fn statistic(&self) -> &dyn Statistic<Value, Count> {
@@ -163,20 +170,20 @@ where
 
     pub fn outputs(&self) -> Vec<ApproxOutput> {
         let mut ret = Vec::new();
-        let outputs = self.outputs.lock().unwrap();
-        for output in (*outputs).iter().map(|v| *v) {
+        // let outputs = self.outputs.lock().unwrap();
+        for output in (self.outputs).iter().map(|v| *v) {
             ret.push(output);
         }
         ret
     }
 
     pub fn add_output(&self, output: Output) {
-        let mut outputs = self.outputs.lock().unwrap();
-        (*outputs).insert(ApproxOutput::from(output));
+        // let mut outputs = self.outputs.lock().unwrap();
+        (self.outputs).insert(ApproxOutput::from(output));
     }
 
     pub fn remove_output(&self, output: Output) {
-        let mut outputs = self.outputs.lock().unwrap();
-        (*outputs).remove(&ApproxOutput::from(output));
+        // let mut outputs = self.outputs.lock().unwrap();
+        (self.outputs).remove(&ApproxOutput::from(output));
     }
 }

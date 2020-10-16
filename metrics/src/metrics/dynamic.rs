@@ -4,10 +4,7 @@
 
 use crate::channel::Channel;
 use crate::entry::Entry;
-use crate::outputs::ApproxOutput;
 use crate::*;
-use core::hash::Hash;
-use core::hash::Hasher;
 
 use dashmap::DashMap;
 use rustcommon_atomics::*;

@@ -145,6 +145,75 @@ where
     <Count as Atomic>::Primitive: Primitive,
     u64: From<<Value as Atomic>::Primitive> + From<<Count as Atomic>::Primitive>,
 {
+    /// Create a new empty metrics registry that can hold up to the specified
+    /// number of items.
+    ///
+    /// NOTE: due to hash collisions, it's recommended to allocate at least 2x
+    /// the capacity you expect to use.
+    pub fn with_capacity(items: usize) -> Self {
+        Self {
+            channels: HashMap::with_capacity(items)
+        }
+    }
+
+    /// Begin tracking a new statistic without a corresponding output. Useful if
+    /// metrics will be retrieved and reported manually in a command-line tool.
+    pub fn try_register(&self, statistic: &'a (dyn Statistic<Value, Count> + 'a)) -> Result<(), ()> {
+        let channel = Channel::new(statistic);
+        self.channels.insert(statistic.name().to_string(), channel)
+    }
+
+    /// Adds a new output to the registry which will be included in future
+    /// snapshots. If the statistic is not already tracked, it will be
+    /// registered.
+    pub fn try_add_output(
+        &self,
+        statistic: &'a (dyn Statistic<Value, Count> + 'a),
+        output: Output,
+    ) -> Result<(), ()> {
+        let channel = Channel::new(statistic);
+        self.channels.insert(statistic.name().to_string(), channel)?;
+        if let Some(channel) = self.channels.get(statistic.name()) {
+            channel.add_output(output);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Set the `Summary` for an already registered `Statistic`. This can be
+    /// used when the parameters are not known at compile time. For example, if
+    /// a sampling rate is user configurable at runtime, the number of samples
+    /// may need to be higher for stream summaries.
+    pub fn try_set_summary(
+        &self,
+        statistic: &'a (dyn Statistic<Value, Count> + 'a),
+        summary: Summary<Value, Count>,
+    ) -> Result<(), ()> {
+        if let Some(channel) = self.channels.get(statistic.name()) {
+            channel.set_summary(summary);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Conditionally add a `Summary` for a `Statistic` if one is not currently
+    /// set. This may be used for dynamically registered statistic types to
+    /// prevent clearing an existing summary.
+    pub fn try_add_summary(
+        &self,
+        statistic: &'a (dyn Statistic<Value, Count> + 'a),
+        summary: Summary<Value, Count>,
+    ) -> Result<(), ()> {
+        if let Some(channel) = self.channels.get(statistic.name()) {
+            channel.add_summary(summary);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     /// Record a bucket value + count pair for distribution based statistics.
     /// Use this when the data points are taken from a histogram and the summary
     /// for the statistic is a heatmap.
