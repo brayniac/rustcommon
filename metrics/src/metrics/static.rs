@@ -69,7 +69,11 @@ where
     /// Adds a new output to the registry which will be included in future
     /// snapshots. If the statistic is not already tracked, it will be
     /// registered.
-    pub fn add_output(mut self, statistic: &'a (dyn Statistic<Value, Count> + 'a), output: Output) -> Self {
+    pub fn add_output(
+        mut self,
+        statistic: &'a (dyn Statistic<Value, Count> + 'a),
+        output: Output,
+    ) -> Self {
         if !self.channels.contains_key(statistic.name()) {
             let channel = Channel::new(statistic);
             self.channels.insert(statistic.name().to_string(), channel);
@@ -114,9 +118,7 @@ where
         for (name, channel) in self.channels {
             let _ = channels.insert(name, channel);
         }
-        Metrics {
-            channels,
-        }
+        Metrics { channels }
     }
 }
 
@@ -135,7 +137,6 @@ where
 {
     channels: Table<String, Channel<Value, Count>>,
 }
-
 
 impl<'a, Value: 'a, Count: 'a> Metrics<Value, Count>
 where
@@ -293,4 +294,3 @@ where
         result
     }
 }
-

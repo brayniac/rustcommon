@@ -8,5 +8,5 @@ mod r#static;
 
 pub use dynamic::Metrics;
 pub use metric::Metric;
-pub use r#static::MetricsBuilder as StaticMetricsBuilder;
 pub use r#static::Metrics as StaticMetrics;
+pub use r#static::MetricsBuilder as StaticMetricsBuilder;

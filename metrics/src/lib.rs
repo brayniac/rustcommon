@@ -12,7 +12,7 @@ mod summary;
 mod traits;
 
 pub use error::MetricsError;
-pub use metrics::{Metric, Metrics, StaticMetricsBuilder, StaticMetrics};
+pub use metrics::{Metric, Metrics, StaticMetrics, StaticMetricsBuilder};
 pub use outputs::Output;
 pub use source::Source;
 pub use summary::Summary;

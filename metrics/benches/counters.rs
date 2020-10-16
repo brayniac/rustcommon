@@ -56,11 +56,11 @@ fn u8_u8(c: &mut Criterion) {
 fn static_u8_u8(c: &mut Criterion) {
     let metrics = Arc::new(
         StaticMetricsBuilder::<AtomicU8, AtomicU8>::new()
-        .register(&StatU8::Alpha)
-        .add_output(&StatU8::Alpha, Output::Reading)
-        .register(&StatU8::Bravo)
-        .add_output(&StatU8::Bravo, Output::Reading)
-        .build()
+            .register(&StatU8::Alpha)
+            .add_output(&StatU8::Alpha, Output::Reading)
+            .register(&StatU8::Bravo)
+            .add_output(&StatU8::Bravo, Output::Reading)
+            .build(),
     );
 
     let mut group = c.benchmark_group("StaticMetrics/AtomicU8/AtomicU8/counter");

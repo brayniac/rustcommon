@@ -10,7 +10,6 @@ use core::hash::Hasher;
 
 use rustcommon_atomics::*;
 
-
 /// A statistic and output pair which has a corresponding value
 // #[derive(PartialEq, Eq, Hash)]
 pub struct Metric<Value, Count>
