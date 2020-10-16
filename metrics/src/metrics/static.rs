@@ -6,10 +6,9 @@ use crate::channel::Channel;
 use crate::entry::Entry;
 use crate::*;
 
-use rustcommon_atomichash::Table;
+use rustcommon_atomichash::HashMap;
 use rustcommon_atomics::*;
 
-use std::collections::HashMap;
 use std::time::Instant;
 
 /// `Metrics` serves as a registry of outputs which are included in snapshots.
@@ -25,7 +24,7 @@ where
     <Count as Atomic>::Primitive: Primitive,
     u64: From<<Value as Atomic>::Primitive> + From<<Count as Atomic>::Primitive>,
 {
-    channels: HashMap<String, Channel<Value, Count>>,
+    channels: std::collections::HashMap<String, Channel<Value, Count>>,
 }
 
 impl<'a, Value: 'a, Count: 'a> Default for MetricsBuilder<Value, Count>
@@ -38,7 +37,7 @@ where
 {
     fn default() -> Self {
         Self {
-            channels: HashMap::new(),
+            channels: std::collections::HashMap::new(),
         }
     }
 }
@@ -114,7 +113,7 @@ where
     }
 
     pub fn build(self) -> Metrics<Value, Count> {
-        let channels = Table::with_capacity(self.channels.len() * 2);
+        let channels = HashMap::with_capacity(self.channels.len() * 2);
         for (name, channel) in self.channels {
             let _ = channels.insert(name, channel);
         }
@@ -135,7 +134,7 @@ where
     <Count as Atomic>::Primitive: Primitive,
     u64: From<<Value as Atomic>::Primitive> + From<<Count as Atomic>::Primitive>,
 {
-    channels: Table<String, Channel<Value, Count>>,
+    channels: HashMap<String, Channel<Value, Count>>,
 }
 
 impl<'a, Value: 'a, Count: 'a> Metrics<Value, Count>
@@ -267,9 +266,9 @@ where
     }
 
     /// Generates a point-in-time snapshot of metric and value pairs.
-    pub fn snapshot(&self) -> HashMap<Metric<Value, Count>, <Value as Atomic>::Primitive> {
+    pub fn snapshot(&self) -> std::collections::HashMap<Metric<Value, Count>, <Value as Atomic>::Primitive> {
         #[allow(unused_mut)]
-        let mut result = HashMap::new();
+        let mut result = std::collections::HashMap::new();
         for (_name, channel) in &self.channels {
             // let (_name, channel) = entry.pair();
             for output in channel.outputs() {
