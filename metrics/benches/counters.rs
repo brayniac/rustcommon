@@ -33,13 +33,15 @@ impl Statistic<AtomicU8, AtomicU8> for StatU8 {
 }
 
 fn u8_u8(c: &mut Criterion) {
-    let metrics = Arc::new(Metrics::<AtomicU8, AtomicU8>::new());
+    let mut metrics = Metrics::<AtomicU8, AtomicU8>::new();
 
     metrics.register(&StatU8::Alpha);
     metrics.add_output(&StatU8::Alpha, Output::Reading);
 
     metrics.register(&StatU8::Bravo);
     metrics.add_output(&StatU8::Bravo, Output::Reading);
+
+    let metrics = Arc::new(metrics);
 
     let mut group = c.benchmark_group("Metrics/AtomicU8/AtomicU8/counter");
 

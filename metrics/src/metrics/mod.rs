@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use std::sync::RwLock;
 use crate::channel::Channel;
 use crate::entry::Entry;
 use crate::outputs::ApproxOutput;
@@ -9,7 +10,7 @@ use crate::*;
 use core::hash::Hash;
 use core::hash::Hasher;
 
-use dashmap::DashMap;
+use crossbeam::sync::ShardedLock;
 use rustcommon_atomics::*;
 
 use std::collections::HashMap;
@@ -28,7 +29,7 @@ where
     <Count as Atomic>::Primitive: Primitive,
     u64: From<<Value as Atomic>::Primitive> + From<<Count as Atomic>::Primitive>,
 {
-    channels: DashMap<String, Channel<Value, Count>>,
+    channels: HashMap<String, Channel<Value, Count>>,
 }
 
 impl<'a, Value: 'a, Count: 'a> Default for Metrics<Value, Count>
@@ -41,7 +42,7 @@ where
 {
     fn default() -> Self {
         Self {
-            channels: DashMap::new(),
+            channels: HashMap::new(),
         }
     }
 }
@@ -61,22 +62,26 @@ where
 
     /// Begin tracking a new statistic without a corresponding output. Useful if
     /// metrics will be retrieved and reported manually in a command-line tool.
-    pub fn register(&self, statistic: &'a (dyn Statistic<Value, Count> + 'a)) {
-        if !self.channels.contains_key(statistic.name()) {
-            let channel = Channel::new(statistic);
-            self.channels.insert(statistic.name().to_string(), channel);
+    pub fn register(&mut self, statistic: &'a (dyn Statistic<Value, Count> + 'a)) {
+        if self.channels.contains_key(statistic.name()) {
+            return;
         }
+        let channel = Channel::new(statistic);
+        self.channels.insert(statistic.name().to_string(), channel);
     }
 
     /// Stop tracking a statistics and any corresponding outputs.
-    pub fn deregister(&self, statistic: &'a (dyn Statistic<Value, Count> + 'a)) {
+    pub fn deregister(&mut self, statistic: &'a (dyn Statistic<Value, Count> + 'a)) {
+        if !self.channels.contains_key(statistic.name()) {
+            return;
+        }
         self.channels.remove(statistic.name());
     }
 
     /// Adds a new output to the registry which will be included in future
     /// snapshots. If the statistic is not already tracked, it will be
     /// registered.
-    pub fn add_output(&self, statistic: &'a (dyn Statistic<Value, Count> + 'a), output: Output) {
+    pub fn add_output(&mut self, statistic: &'a (dyn Statistic<Value, Count> + 'a), output: Output) {
         self.register(statistic);
         if let Some(channel) = self.channels.get_mut(statistic.name()) {
             channel.add_output(output);
@@ -87,7 +92,7 @@ where
     /// future snapshots. This will not remove the related datastructures for
     /// the statistic even if no outputs remain. Use `deregister` method to stop
     /// tracking a statistic entirely.
-    pub fn remove_output(&self, statistic: &dyn Statistic<Value, Count>, output: Output) {
+    pub fn remove_output(&mut self, statistic: &dyn Statistic<Value, Count>, output: Output) {
         if let Some(channel) = self.channels.get_mut(statistic.name()) {
             channel.remove_output(output);
         }
@@ -98,11 +103,11 @@ where
     /// a sampling rate is user configurable at runtime, the number of samples
     /// may need to be higher for stream summaries.
     pub fn set_summary(
-        &self,
+        &mut self,
         statistic: &'a (dyn Statistic<Value, Count> + 'a),
         summary: Summary<Value, Count>,
     ) {
-        if let Some(mut channel) = self.channels.get_mut(statistic.name()) {
+        if let Some(channel) = self.channels.get_mut(statistic.name()) {
             channel.set_summary(summary);
         }
     }
@@ -111,18 +116,18 @@ where
     /// set. This may be used for dynamically registered statistic types to
     /// prevent clearing an existing summary.
     pub fn add_summary(
-        &self,
+        &mut self,
         statistic: &'a (dyn Statistic<Value, Count> + 'a),
         summary: Summary<Value, Count>,
     ) {
-        if let Some(mut channel) = self.channels.get_mut(statistic.name()) {
+        if let Some(channel) = self.channels.get_mut(statistic.name()) {
             channel.add_summary(summary);
         }
     }
 
     /// Remove all statistics and outputs.
-    pub fn clear(&self) {
-        self.channels.clear();
+    pub fn clear(&mut self) {
+       self.channels.clear()
     }
 
     /// Record a bucket value + count pair for distribution based statistics.
@@ -139,7 +144,6 @@ where
             if let Some(channel) = self.channels.get(statistic.name()) {
                 channel.record_bucket(time, value, count)
             } else {
-                // statistic not registered
                 Err(MetricsError::NotRegistered)
             }
         } else {
@@ -162,7 +166,6 @@ where
                 channel.record_counter(time, value);
                 Ok(())
             } else {
-                // statistic not registered
                 Err(MetricsError::NotRegistered)
             }
         } else {
@@ -184,7 +187,6 @@ where
                 channel.increment_counter(value);
                 Ok(())
             } else {
-                // statistic not registered
                 Err(MetricsError::NotRegistered)
             }
         } else {
@@ -206,7 +208,6 @@ where
                 channel.record_gauge(time, value);
                 Ok(())
             } else {
-                // statistic not registered
                 Err(MetricsError::NotRegistered)
             }
         } else {
@@ -249,8 +250,7 @@ where
     pub fn snapshot(&self) -> HashMap<Metric<Value, Count>, <Value as Atomic>::Primitive> {
         #[allow(unused_mut)]
         let mut result = HashMap::new();
-        for entry in &self.channels {
-            let (_name, channel) = entry.pair();
+        for (_name, channel) in &self.channels {
             for output in channel.outputs() {
                 if let Ok(value) = match Output::from(output) {
                     Output::Reading => {

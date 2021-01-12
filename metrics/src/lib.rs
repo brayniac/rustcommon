@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let metrics = Metrics::<AtomicU64, AtomicU64>::new();
+        let mut metrics = Metrics::<AtomicU64, AtomicU64>::new();
         metrics.register(&TestStat::Alpha);
         assert!(metrics.reading(&TestStat::Alpha).is_err());
         metrics
@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn outputs() {
-        let metrics = Metrics::<AtomicU64, AtomicU64>::new();
+        let mut metrics = Metrics::<AtomicU64, AtomicU64>::new();
         metrics.register(&TestStat::Alpha);
         assert!(metrics.snapshot().is_empty());
         metrics.add_output(&TestStat::Alpha, Output::Reading);
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn absolute_counter() {
-        let metrics = Metrics::<AtomicU64, AtomicU64>::new();
+        let mut metrics = Metrics::<AtomicU64, AtomicU64>::new();
         metrics.register(&TestStat::Alpha);
         let start = Instant::now();
         assert!(metrics.reading(&TestStat::Alpha).is_err());
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn increment_counter() {
-        let metrics = Metrics::<AtomicU64, AtomicU64>::new();
+        let mut metrics = Metrics::<AtomicU64, AtomicU64>::new();
         metrics.register(&TestStat::Alpha);
         assert!(metrics.reading(&TestStat::Alpha).is_err());
         metrics.increment_counter(&TestStat::Alpha, 1).unwrap();
