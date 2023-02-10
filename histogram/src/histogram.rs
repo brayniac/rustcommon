@@ -155,6 +155,9 @@ impl Histogram {
         }
 
         let index = self.bucket_index(value);
+
+        println!("incr: {count} at {index}");
+
         self.buckets[index].fetch_add(count, Ordering::Relaxed);
 
         Ok(())
@@ -365,7 +368,8 @@ impl Histogram {
             .enumerate()
         {
             if value > 0 {
-                self.buckets[idx].fetch_sub(value, Ordering::Relaxed);
+                let prev = self.buckets[idx].fetch_sub(value, Ordering::Relaxed);
+                println!("subtract: {value} at {idx} prev {prev}");
             }
         }
 
