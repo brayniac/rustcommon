@@ -180,7 +180,7 @@ impl Heatmap {
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) {
         self.tick(time);
-        let _ = self.summary.increment(value, count);
+        // let _ = self.summary.increment(value, count);
         let _ = self.slices[self.current.load(Ordering::Relaxed)].increment(value, count);
     }
 
@@ -199,7 +199,22 @@ impl Heatmap {
     /// in-progress.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         self.tick(Instant::now());
+        self.summary.clear();
+        for slice in &self.slices {
+            let _ = self.summary.merge(slice);
+        }
         self.summary.percentile(percentile).map_err(Error::from)
+    }
+
+    /// Return the nearest value for the requested percentile (0.0 - 100.0)
+    /// across the total range of samples retained in the `Heatmap`.
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<Percentile>, Error> {
+        self.tick(Instant::now());
+        self.summary.clear();
+        for slice in &self.slices {
+            let _ = self.summary.merge(slice);
+        }
+        self.summary.percentiles(percentiles).map_err(Error::from)
     }
 
     // Internal function which handles reuse of older windows to store newer
@@ -223,9 +238,8 @@ impl Heatmap {
                     self.current.store(next, Ordering::Relaxed);
                     self.next_tick.fetch_add(self.resolution, Ordering::Relaxed);
 
-                    // now we have a slice to subtract and clear from the summary
-                    // this is the histogram that is one ahead of our new current
-                    // position
+                    
+                    // the slice following the new current should be cleared
                     let mut to_clear = next + 1;
 
                     // check if we need to wrap around to the start
@@ -233,8 +247,11 @@ impl Heatmap {
                         to_clear -= self.slices.len();
                     }
 
+                    // clear the slice
+                    self.slices[to_clear].clear();
+
                     // subtract and clear
-                    let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
+                    // let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
                 }
                 // if we failed to acquire the lock, just loop
             }
