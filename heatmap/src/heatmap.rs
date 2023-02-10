@@ -249,9 +249,6 @@ impl Heatmap {
 
                     // clear the slice
                     self.slices[to_clear].clear();
-
-                    // subtract and clear
-                    // let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
                 }
                 // if we failed to acquire the lock, just loop
             }
