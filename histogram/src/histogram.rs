@@ -155,10 +155,11 @@ impl Histogram {
         }
 
         let index = self.bucket_index(value);
+        let prev = self.buckets[index].fetch_add(count, Ordering::Relaxed);
 
-        println!("incr: {count} at {index}");
-
-        self.buckets[index].fetch_add(count, Ordering::Relaxed);
+        if prev.wrapping_add(count) < prev {
+            println!("overflow detected on increment!");
+        }
 
         Ok(())
     }
