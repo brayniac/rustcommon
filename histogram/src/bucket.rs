@@ -1,29 +1,24 @@
-// Copyright 2022 Twitter, Inc.
-// Licensed under the Apache License, Version 2.0
-// http://www.apache.org/licenses/LICENSE-2.0
-
-/// A `Bucket` represents a discrete range of values and the sum of recorded
-/// counts within this range.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Bucket {
-    pub(crate) low: u64,
-    pub(crate) high: u64,
-    pub(crate) count: u32,
+    pub(crate) count: u64,
+    pub(crate) lower: u64,
+    pub(crate) upper: u64,
 }
 
 impl Bucket {
-    /// The lowest value represented by this `Bucket`.
-    pub fn low(&self) -> u64 {
-        self.low
-    }
-
-    /// The highest value represented by this `Bucket`.
-    pub fn high(&self) -> u64 {
-        self.high
-    }
-
-    /// The sum of the recorded counts which fall into this `Bucket`.
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         self.count
+    }
+
+    pub fn range(&self) -> std::ops::RangeInclusive<u64> {
+        std::ops::RangeInclusive::new(self.lower, self.upper)
+    }
+
+    pub fn lower(&self) -> u64 {
+        self.lower
+    }
+
+    pub fn upper(&self) -> u64 {
+        self.upper
     }
 }

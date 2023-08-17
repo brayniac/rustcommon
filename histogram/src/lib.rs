@@ -1,206 +1,152 @@
-// Copyright 2022 Twitter, Inc.
-// Licensed under the Apache License, Version 2.0
-// http://www.apache.org/licenses/LICENSE-2.0
+//! This crate contains a collection of histogram datastructures to help count
+//! occurances of values and report on their distribution.
+//!
+//! There are several implementations to choose from, with each targeting
+//! a specific use-case.
+//!
+//! All the implementations share the same bucketing / binning strategy and
+//! allow you to store values across a wide range with minimal loss of
+//! precision. We do this by using linear buckets for the smaller values in the
+//! histogram and transition to logarithmic buckets with linear subdivisions for
+//! buckets that contain larger values. The indexing strategy is designed to be
+//! efficient, allowing for blazingly fast increments.
+//!
+//! * `Histogram` - when a very fast histogram is all you need
+//! * `AtomicHistogram` - when you need to share a histogram across threads
+//! * `SlidingWindowHistogram` - if you care about data points within a bounded
+//!    range of time, with old values automatically dropping out
+//!
+
+pub mod atomic;
+pub mod sliding_window;
 
 mod bucket;
-#[cfg(feature = "serde-serialize")]
-mod compact;
-mod error;
-mod histogram;
-mod percentile;
+mod config;
+mod errors;
+mod standard;
 
-pub use self::histogram::{Builder, Histogram};
+pub use clocksource::precise::{Instant, UnixInstant};
+
 pub use bucket::Bucket;
-#[cfg(feature = "serde-serialize")]
-pub use compact::CompactHistogram;
-pub use error::Error;
-pub use percentile::Percentile;
+pub use errors::{BuildError, Error};
+pub use standard::Histogram;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+use core::sync::atomic::Ordering;
 
-    #[test]
-    fn builder() {
-        let h = Histogram::builder().build().unwrap();
-        let p = h.parameters();
+use crate::config::Config;
 
-        assert_eq!(p.0, 0);
-        assert_eq!(p.1, 10);
-        assert_eq!(p.2, 30);
+use clocksource::precise::{AtomicInstant, Duration};
+
+/// A private trait that allows us to share logic across `Histogram` and
+/// `AtomicHistogram` types.
+trait _Histograms {
+    fn config(&self) -> &Config;
+
+    fn total_count(&self) -> u128;
+
+    fn get_count(&self, index: usize) -> u64;
+
+    fn get_bucket(&self, index: usize) -> Bucket {
+        Bucket {
+            count: self.get_count(index),
+            lower: self.config().index_to_lower_bound(index),
+            upper: self.config().index_to_upper_bound(index),
+        }
+    }
+}
+
+/// A histogram stores counts for values and produces summary statistics about
+/// the distribution of values.
+pub trait Histograms {
+    fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
+        self.percentiles(&[percentile])
+            .map(|v| v.first().unwrap().1)
     }
 
-    #[test]
-    fn min_resolution() {
-        let h = Histogram::builder().min_resolution(10).build().unwrap();
-        assert_eq!(h.parameters().0, 3);
+    fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error>;
+}
 
-        let h = Histogram::builder().min_resolution(8).build().unwrap();
-        assert_eq!(h.parameters().0, 3);
+impl<T: _Histograms> Histograms for T {
+    fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+        // get the total count across all buckets as a u64
+        let total: u128 = self.total_count();
 
-        let h = Histogram::builder().min_resolution(0).build().unwrap();
-        assert_eq!(h.parameters().0, 0);
-    }
-
-    #[test]
-    // run some test cases for various histogram sizes
-    fn num_buckets() {
-        let histogram = Histogram::new(0, 2, 10).unwrap();
-        assert_eq!(histogram.buckets(), 20);
-
-        let histogram = Histogram::new(0, 10, 20).unwrap();
-        assert_eq!(histogram.buckets(), 6144);
-
-        let histogram = Histogram::new(0, 10, 30).unwrap();
-        assert_eq!(histogram.buckets(), 11264);
-
-        let histogram = Histogram::new(1, 10, 20).unwrap();
-        assert_eq!(histogram.buckets(), 3072);
-
-        let histogram = Histogram::new(0, 9, 20).unwrap();
-        assert_eq!(histogram.buckets(), 3328);
-    }
-
-    #[test]
-    fn percentiles_1() {
-        let histogram = Histogram::new(0, 2, 10).unwrap();
-
-        for v in 1..1024 {
-            assert!(histogram.increment(v, 1).is_ok());
-            assert_eq!(histogram.percentile(0.0).map(|b| b.high()), Ok(1));
-
-            assert!(histogram.percentile(100.0).map(|b| b.high()).unwrap_or(0) >= v);
-            assert!(histogram.percentile(100.0).map(|b| b.low()).unwrap_or(0) <= v);
+        // if the histogram is empty, then we should return an error
+        if total == 0_u128 {
+            // TODO(brian): this should return an error =)
+            return Err(Error::Empty);
         }
 
-        let percentiles: Vec<(u64, u64)> = histogram
-            .percentiles(&[1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0])
-            .unwrap()
-            .iter()
-            .map(|p| (p.bucket().low(), p.bucket().high()))
-            .collect();
+        // sort the requested percentiles so we can find them in a single pass
+        let mut percentiles = percentiles.to_vec();
+        percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        // this histogram config doesn't have much resolution, which results in
-        // the upper percentiles falling into buckets that are rather wide
-        assert_eq!(
-            &percentiles,
-            &[
-                (8, 11),
-                (96, 127),
-                (256, 383),
-                (512, 767),
-                (768, 1023),
-                (768, 1023),
-                (768, 1023)
-            ]
-        );
-    }
+        let mut result = Vec::new();
 
-    #[test]
-    fn percentiles_2() {
-        let histogram = Histogram::new(0, 5, 10).unwrap();
+        let mut have = 0_u128;
+        let mut percentile_idx = 0_usize;
+        let mut current_idx = 0_usize;
+        let mut max_idx = 0_usize;
 
-        for v in 1..1024 {
-            assert!(histogram.increment(v, 1).is_ok());
-            assert_eq!(histogram.percentile(0.0).map(|b| b.high()), Ok(1));
+        // outer loop walks through the requested percentiles
+        'outer: loop {
+            // if we have all the requested percentiles, return the result
+            if percentile_idx >= percentiles.len() {
+                return Ok(result);
+            }
 
-            assert!(histogram.percentile(100.0).map(|b| b.high()).unwrap_or(0) >= v);
-            assert!(histogram.percentile(100.0).map(|b| b.low()).unwrap_or(0) <= v);
+            // calculate the count we need to have for the requested percentile
+            let percentile = percentiles[percentile_idx];
+            let needed = (percentile / 100.0 * total as f64).ceil() as u128;
+
+            // if the count is already that high, push to the results and
+            // continue onto the next percentile
+            if have >= needed {
+                result.push((percentile, self.get_bucket(current_idx)));
+                percentile_idx += 1;
+                continue;
+            }
+
+            // the inner loop walks through the buckets
+            'inner: loop {
+                // if we've run out of buckets, break the outer loop
+                if current_idx >= self.config().total_bins() {
+                    break 'outer;
+                }
+
+                // get the current count for the current bucket
+                let current_count = self.get_count(current_idx);
+
+                // track the highest index with a non-zero count
+                if current_count > 0 {
+                    max_idx = current_idx;
+                }
+
+                // increment what we have by the current bucket count
+                have += current_count as u128;
+
+                // if this is enough for the requested percentile, push to the
+                // results and break the inner loop to move onto the next
+                // percentile
+                if have >= needed {
+                    result.push((percentile, self.get_bucket(current_idx)));
+                    percentile_idx += 1;
+                    current_idx += 1;
+                    break 'inner;
+                }
+
+                // increment the current_idx so we continue from the next bucket
+                current_idx += 1;
+            }
         }
 
-        let percentiles: Vec<(u64, u64)> = histogram
-            .percentiles(&[1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0])
-            .unwrap()
-            .iter()
-            .map(|p| (p.bucket().low(), p.bucket().high()))
-            .collect();
-
-        // this histogram config has enough resolution to keep the error lower
-        assert_eq!(
-            &percentiles,
-            &[
-                (11, 11),
-                (100, 103),
-                (256, 271),
-                (512, 543),
-                (768, 799),
-                (896, 927),
-                (992, 1023)
-            ]
-        );
-    }
-
-    #[test]
-    fn percentiles_3() {
-        let histogram = Histogram::builder().build().unwrap();
-        histogram.increment(1, 1).unwrap();
-        histogram.increment(10000000, 1).unwrap();
-
-        let percentiles = histogram.percentiles(&[25.0, 75.0]).unwrap();
-
-        assert_eq!(histogram.percentile(25.0).map(|b| b.high()), Ok(1));
-        assert_eq!(histogram.percentile(75.0).map(|b| b.high()), Ok(10010623));
-
-        assert_eq!(percentiles.get(0).map(|b| b.bucket().high()), Some(1));
-        assert_eq!(
-            percentiles.get(1).map(|b| b.bucket().high()),
-            Some(10010623)
-        );
-    }
-
-    #[test]
-    fn increment_and_decrement() {
-        let histogram = Histogram::builder().build().unwrap();
-        assert_eq!(
-            histogram.percentile(0.0).map(|b| b.count()),
-            Err(Error::Empty)
-        );
-
-        histogram.increment(1, 1).unwrap();
-        assert_eq!(histogram.percentile(0.0).map(|b| b.count()), Ok(1));
-
-        histogram.decrement(1, 1).unwrap();
-        assert_eq!(
-            histogram.percentile(0.0).map(|b| b.count()),
-            Err(Error::Empty)
-        );
-    }
-
-    #[cfg(feature = "serde-serialize")]
-    #[test]
-    fn compact_histogram() {
-        let h = CompactHistogram::default();
-        assert_eq!(h.m, 0);
-        assert_eq!(h.r, 0);
-        assert_eq!(h.n, 0);
-        assert_eq!(&h.index, &[]);
-        assert_eq!(&h.count, &[]);
-
-        assert!(Histogram::try_from(&h).is_err());
-    }
-
-    #[cfg(feature = "serde-serialize")]
-    #[test]
-    fn hydrate_and_dehydrate() {
-        let histogram = Histogram::new(0, 5, 10).unwrap();
-
-        for v in (1..1024).step_by(128) {
-            assert!(histogram.increment(v, 1).is_ok());
+        // fill the remaining percentiles with the highest non-zero bucket's
+        // value. this is possible if the histogram has been modified while we
+        // are still iterating.
+        for percentile in percentiles.iter().skip(result.len()) {
+            result.push((*percentile, self.get_bucket(max_idx)));
         }
 
-        let h = CompactHistogram::from(&histogram);
-        assert_eq!(h.m, 0);
-        assert_eq!(h.r, 5);
-        assert_eq!(h.n, 10);
-        assert_eq!(&h.index, &[1, 64, 80, 88, 96, 100, 104, 108]);
-        assert_eq!(&h.count, &[1, 1, 1, 1, 1, 1, 1, 1]);
-
-        let rehydrated = Histogram::try_from(&h).unwrap();
-        assert_eq!(rehydrated.parameters(), histogram.parameters());
-        assert_eq!(rehydrated.buckets(), histogram.buckets());
-        assert!(itertools::equal(
-            rehydrated.into_iter(),
-            histogram.into_iter()
-        ));
+        Ok(result)
     }
 }

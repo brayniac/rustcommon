@@ -2,14 +2,13 @@
 members = [
     "awaken",
     "clocksource",
-    "heatmap",
     "histogram",
     "metriken",
     "metriken/derive",
     "ratelimit",
-    "ringlog",
+    # "ringlog",
     "switchboard",
-    "waterfall",
+    # "waterfall",
 ]
 
 [profile.bench]
