@@ -22,7 +22,7 @@ impl Builder {
         Ok(Self { a, b, n })
     }
 
-    pub fn build<'a>(self) -> Result<Histogram<'a>, BuildError> {
+    pub fn build<'a>(self) -> Result<Histogram, BuildError> {
         let config = Config::new(self.a, self.b, self.n)?;
 
         Ok(Histogram::from_config(config))
@@ -32,12 +32,12 @@ impl Builder {
 /// A simple concurrent histogram that can be used to track the distribution of
 /// occurances of quantized u64 values. Internally it uses 64bit atomic counters
 /// to store the number of occurrances.
-pub struct Histogram<'a> {
-    pub(crate) buckets: &'a [AtomicU64],
+pub struct Histogram {
+    pub(crate) buckets: Box<[AtomicU64]>,
     pub(crate) config: Config,
 }
 
-impl _Histograms for Histogram<'_> {
+impl _Histograms for Histogram {
     fn config(&self) -> &Config {
         &self.config
     }
@@ -54,7 +54,7 @@ impl _Histograms for Histogram<'_> {
     }
 }
 
-impl<'a> Histogram<'a> {
+impl Histogram {
     /// Construct a new `atomic::Histogram` from the provided parameters.
     /// * `a` sets bin width in the linear portion, the bin width is `2^a`
     /// * `b` sets the number of divisions in the logarithmic portion to `2^b`.
@@ -84,35 +84,35 @@ impl<'a> Histogram<'a> {
         let mut buckets = Vec::with_capacity(config.total_bins());
         buckets.resize_with(config.total_bins(), || AtomicU64::new(0));
 
-        let buckets = Box::leak(buckets.into());
+        // let buckets = Box::leak(buckets.into());
 
         Self {
-            buckets,
+            buckets: buckets.into(),
             config,
         }
     }
 
-    /// Construct a `Histogram` from it's parameters and a raw pointer. It is
-    /// the caller's responsibility to convert the histogram back to a raw
-    /// pointer and free the memory.
-    ///
-    /// # Safety
-    /// The pointer must be valid and outlive the `Histogram`. The allocation
-    /// must be properly aligned and initialized. The length of the slice must
-    /// match the number of bins for a histogram with the provided parameters.
-    pub unsafe fn from_raw(
-        a: u8,
-        b: u8,
-        n: u8,
-        buckets: &'a [AtomicU64],
-    ) -> Result<Self, BuildError> {
-        let config = Config::new(a, b, n)?;
+    // /// Construct a `Histogram` from it's parameters and a raw pointer. It is
+    // /// the caller's responsibility to convert the histogram back to a raw
+    // /// pointer and free the memory.
+    // ///
+    // /// # Safety
+    // /// The pointer must be valid and outlive the `Histogram`. The allocation
+    // /// must be properly aligned and initialized. The length of the slice must
+    // /// match the number of bins for a histogram with the provided parameters.
+    // pub unsafe fn from_raw(
+    //     a: u8,
+    //     b: u8,
+    //     n: u8,
+    //     buckets: &'a [AtomicU64],
+    // ) -> Result<Self, BuildError> {
+    //     let config = Config::new(a, b, n)?;
 
-        Ok(Self { buckets, config })
-    }
+    //     Ok(Self { buckets, config })
+    // }
     
     pub(crate) fn as_slice(&self) -> &[AtomicU64] {
-        self.buckets
+        &self.buckets
     }
 }
 

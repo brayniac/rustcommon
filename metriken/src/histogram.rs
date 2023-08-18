@@ -25,7 +25,7 @@ pub use ::histogram::Error as HistogramError;
 /// a None variant until some write has occured. This also means they occupy
 /// very little space until they are initialized.
 pub struct Histogram {
-    inner: OnceLock<AtomicHistogram<'static>>,
+    inner: OnceLock<AtomicHistogram>,
     a: u8,
     b: u8,
     n: u8,

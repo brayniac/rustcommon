@@ -1,7 +1,7 @@
 // use crate::common::SlidingWindowHistogramCommon;
 use super::*;
 
-impl _SlidingWindow for Histogram<'_> {
+impl _SlidingWindow for Histogram {
     fn common(&self) -> &Common {
         &self.common
     }
@@ -10,20 +10,22 @@ impl _SlidingWindow for Histogram<'_> {
 /// A type of histogram that reports on the distribution of values across a
 /// moving window of time. For example, the distribution of values for the past
 /// minute.
-pub struct Histogram<'a> {
+pub struct Histogram {
     common: Common,
 
     // when the next tick begins
     tick_at: Instant,
 
     // the historical histogram snapshots
-    snapshots: Box<[crate::Histogram<'a>]>,
+    snapshots: Box<[crate::Histogram]>,
 
     // the live histogram, this is free-running
-    live: crate::Histogram<'a>,
+    live: crate::Histogram,
+
+    tmp: crate::atomic::Histogram,
 }
 
-impl Histogram<'_> {
+impl Histogram {
     /// Create a new `SlidingWindowHistogram` given the provided parameters.
     ///
     /// Construct a new `SlidingWindowHistogram` from the provided parameters.
@@ -49,6 +51,7 @@ impl Histogram<'_> {
         let common = Common::new(a, b, n, resolution, slices)?;
 
         let live = crate::Histogram::new(a, b, n)?;
+        let tmp = crate::atomic::Histogram::new(a, b, n)?;
 
         let mut snapshots = Vec::with_capacity(common.num_slices());
         snapshots.resize_with(common.num_slices(), || {
@@ -60,6 +63,7 @@ impl Histogram<'_> {
             common,
             live,
             snapshots: snapshots.into(),
+            tmp,
         })
     }
 
@@ -134,7 +138,7 @@ impl Histogram<'_> {
     }
 }
 
-impl SlidingWindowHistograms for Histogram<'_> {
+impl SlidingWindowHistograms for Histogram {
     fn percentiles_between(
         &self,
         start: Instant,
@@ -143,28 +147,20 @@ impl SlidingWindowHistograms for Histogram<'_> {
     ) -> Result<Vec<(f64, Bucket)>, Error> {
         let (start, end) = self.range(start, end);
 
-        let start: &[u64] = self.snapshots[start].buckets;
-        let end: &[u64] = self.snapshots[end].buckets;
+        let start = &self.snapshots[start].buckets;
+        let end = &self.snapshots[end].buckets;
 
-        let mut buckets: Vec<u64> = start
+        for (idx, value) in start
             .iter()
             .zip(end.iter())
-            .map(|(start, end)| (*end).wrapping_sub(*start))
-            .collect();
+            .map(|(start, end)| {
+                end.wrapping_sub(*start)
+            }).enumerate()
+            {
+                self.tmp.buckets[idx].store(value, Ordering::Relaxed);
+            }
 
-        let (a, b, n) = self.live.config.params();
-
-        let histogram = unsafe {
-            crate::Histogram::from_raw(
-                a,
-                b,
-                n,
-                &mut buckets,
-            )
-            .unwrap()
-        };
-
-        histogram.percentiles(percentiles)
+        self.tmp.percentiles(percentiles)
     }
 
     fn percentiles_last(
@@ -179,32 +175,24 @@ impl SlidingWindowHistograms for Histogram<'_> {
 
         let (start, end) = self.range(start, end);
 
-        let start: &[u64] = self.snapshots[start].buckets;
-        let end: &[u64] = self.snapshots[end].buckets;
+        let start = &self.snapshots[start].buckets;
+        let end = &self.snapshots[end].buckets;
 
-        let mut buckets: Vec<u64> = start
+        for (idx, value) in start
             .iter()
             .zip(end.iter())
-            .map(|(start, end)| (*end).wrapping_sub(*start))
-            .collect();
+            .map(|(start, end)| {
+                end.wrapping_sub(*start)
+            }).enumerate()
+            {
+                self.tmp.buckets[idx].store(value, Ordering::Relaxed);
+            }
 
-        let (a, b, n) = self.live.config.params();
-
-        let histogram = unsafe {
-            crate::Histogram::from_raw(
-                a,
-                b,
-                n,
-                &mut buckets,
-            )
-            .unwrap()
-        };
-
-        histogram.percentiles(percentiles)
+        self.tmp.percentiles(percentiles)
     }
 }
 
-impl Histograms for Histogram<'_> {
+impl Histograms for Histogram {
     fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
         // the behavior here is to return percentiles across the full window
         let duration =
