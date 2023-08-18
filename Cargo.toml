@@ -6,7 +6,7 @@ members = [
     "metriken",
     "metriken/derive",
     "ratelimit",
-    # "ringlog",
+    "ringlog",
     "switchboard",
     # "waterfall",
 ]
