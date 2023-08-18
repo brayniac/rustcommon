@@ -1,3 +1,4 @@
+use core::sync::atomic::AtomicU64;
 use histogram::Histograms;
 use crate::{Metric, Value};
 
@@ -100,6 +101,14 @@ impl Histogram {
             )
             .unwrap()
         })
+    }
+
+    pub fn as_slice(&self) -> &[AtomicU64] {
+        self.get_or_init().as_slice()
+    }
+
+    pub fn snapshot(&self, time: Instant) {
+        self.get_or_init().snapshot(time)
     }
 }
 

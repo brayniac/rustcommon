@@ -152,6 +152,10 @@ impl Histogram<'_> {
 
         self.live.add(value, count)
     }
+
+    pub fn as_slice(&self) -> &[AtomicU64] {
+        self.live.as_slice()
+    }
 }
 
 impl SlidingWindowHistograms for Histogram<'_> {
