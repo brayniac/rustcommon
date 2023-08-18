@@ -66,58 +66,18 @@ impl Histogram<'_> {
         })
     }
 
-    // pub(crate) fn with_live_histogram(live: AtomicHistogram, resolution: core::time::Duration, slices: usize) -> Result<Self, BuildError> {
-    //     Ok(Self {
-
-    //     })
-    // }
-
-    /// Increment the bucket that contains the value by one. This is a
-    /// convenience method that uses `Timestamp::now()` as the time associated
-    /// with the observation. If you already have a timestamp, please use
-    /// `increment_at` instead.
-    pub fn add(&self, value: u64, count: u64) -> Result<(), Error> {
-        self.add_at(Instant::now(), value, count)
-    }
-
-    /// Increment the bucket that contains the value by one. This is a
-    /// convenience method that uses `Timestamp::now()` as the time associated
-    /// with the observation. If you already have a timestamp, please use
-    /// `increment_at` instead.
-    pub fn increment(&self, value: u64) -> Result<(), Error> {
-        self.add(value, 1)
-    }
-
-
-    pub fn increment_at(&self, instant: Instant, value: u64) -> Result<(), Error> {
-        self.add_at(instant, value, 1)
-    }
-
-    /// Increment a timestamp-value pair by some count. This is useful if you
-    /// already have done the timestamping elsewhere. For example, if tracking
-    /// latency measurements, you have the timestamps for the start and end of
-    /// the event and it would be wasteful to timestamp again.
-    ///
-    /// # NOTE
-    /// When the increment requires snapshot updates (eg, when )
-    pub fn add_at(&self, instant: Instant, value: u64, count: u64) -> Result<(), Error> {
+    /// Moves the window forward, if necessary.
+    pub fn snapshot(&self, instant: Instant) {
         loop {
             let tick_at = self.tick_at.load(Ordering::Relaxed);
 
-            // fast path, we just update the live histogram
+            // fast path when the window does not need to be advanced
             if instant < tick_at {
-                // if instant < (tick_at - self.resolution) {
-                // We *could* attempt to record into prior snapshots. But
-                // for simplicity and to avoid changing past readings, we
-                // will simply record into the live histogram anyway. We
-                // might want to raise this as an error.
-                // }
-
-                return self.live.add(value, count);
+                return;
             }
 
-            // rarer path where we need to snapshot
-            //
+            // otherwise we need to slide the window forward
+
             // Even if we are behind by multiple ticks, we will only snapshot
             // into the most recent snapshot position. This ensures that we will
             // not change past readings. It also simplifies things and reduces
@@ -156,10 +116,41 @@ impl Histogram<'_> {
             for (s, d) in src.iter().zip(dst) {
                 d.store(s.load(Ordering::Relaxed), Ordering::Relaxed);
             }
-
-            // and finally record into the live histogram
-            return self.live.add(value, count);
         }
+    }
+
+    /// Increment the bucket that contains the value by one. This is a
+    /// convenience method that uses `Timestamp::now()` as the time associated
+    /// with the observation. If you already have a timestamp, please use
+    /// `increment_at` instead.
+    pub fn add(&self, value: u64, count: u64) -> Result<(), Error> {
+        self.add_at(Instant::now(), value, count)
+    }
+
+    /// Increment the bucket that contains the value by one. This is a
+    /// convenience method that uses `Timestamp::now()` as the time associated
+    /// with the observation. If you already have a timestamp, please use
+    /// `increment_at` instead.
+    pub fn increment(&self, value: u64) -> Result<(), Error> {
+        self.add(value, 1)
+    }
+
+
+    pub fn increment_at(&self, instant: Instant, value: u64) -> Result<(), Error> {
+        self.add_at(instant, value, 1)
+    }
+
+    /// Increment a timestamp-value pair by some count. This is useful if you
+    /// already have done the timestamping elsewhere. For example, if tracking
+    /// latency measurements, you have the timestamps for the start and end of
+    /// the event and it would be wasteful to timestamp again.
+    ///
+    /// # NOTE
+    /// When the increment requires snapshot updates (eg, when )
+    pub fn add_at(&self, instant: Instant, value: u64, count: u64) -> Result<(), Error> {
+        self.snapshot(instant);
+
+        self.live.add(value, count)
     }
 }
 
