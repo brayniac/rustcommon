@@ -52,7 +52,7 @@ impl _Histograms for Histogram {
     }
 }
 
-impl<'a> Histogram {
+impl Histogram {
     /// Construct a new `AtomicHistogram` from the provided parameters.
     /// * `a` sets bin width in the linear portion, the bin width is `2^a`
     /// * `b` sets the number of divisions in the logarithmic portion to `2^b`.

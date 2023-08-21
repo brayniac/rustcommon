@@ -5,6 +5,36 @@ impl _SlidingWindow for Histogram {
     fn common(&self) -> &Common {
         &self.common
     }
+
+    fn tick_at(&self) -> Instant {
+        self.tick_at
+    }
+
+    fn distribution_between(
+        &self,
+        start: Instant,
+        end: Instant,
+    ) -> Result<crate::Histogram, Error> {
+        let (a, b, n) = self.live.config().params();
+        let mut histogram = crate::Histogram::new(a,b,n).unwrap();
+
+        let (start, end) = self.range(start, end);
+
+        let start = &self.snapshots[start].buckets;
+        let end = &self.snapshots[end].buckets;
+
+        for (idx, value) in start
+            .iter()
+            .zip(end.iter())
+            .map(|(start, end)| {
+                end.wrapping_sub(*start)
+            }).enumerate()
+            {
+                histogram.buckets[idx] = value;
+            }
+
+        Ok(histogram)
+    }
 }
 
 /// A type of histogram that reports on the distribution of values across a
@@ -21,8 +51,6 @@ pub struct Histogram {
 
     // the live histogram, this is free-running
     live: crate::Histogram,
-
-    tmp: crate::atomic::Histogram,
 }
 
 impl Histogram {
@@ -51,7 +79,6 @@ impl Histogram {
         let common = Common::new(a, b, n, resolution, slices)?;
 
         let live = crate::Histogram::new(a, b, n)?;
-        let tmp = crate::atomic::Histogram::new(a, b, n)?;
 
         let mut snapshots = Vec::with_capacity(common.num_slices());
         snapshots.resize_with(common.num_slices(), || {
@@ -63,7 +90,6 @@ impl Histogram {
             common,
             live,
             snapshots: snapshots.into(),
-            tmp,
         })
     }
 
@@ -135,60 +161,6 @@ impl Histogram {
 
         // and finally record into the live histogram
         self.live.add(value, count)
-    }
-}
-
-impl SlidingWindowHistograms for Histogram {
-    fn percentiles_between(
-        &self,
-        start: Instant,
-        end: Instant,
-        percentiles: &[f64],
-    ) -> Result<Vec<(f64, Bucket)>, Error> {
-        let (start, end) = self.range(start, end);
-
-        let start = &self.snapshots[start].buckets;
-        let end = &self.snapshots[end].buckets;
-
-        for (idx, value) in start
-            .iter()
-            .zip(end.iter())
-            .map(|(start, end)| {
-                end.wrapping_sub(*start)
-            }).enumerate()
-            {
-                self.tmp.buckets[idx].store(value, Ordering::Relaxed);
-            }
-
-        self.tmp.percentiles(percentiles)
-    }
-
-    fn percentiles_last(
-        &self,
-        duration: Duration,
-        percentiles: &[f64],
-    ) -> Result<Vec<(f64, Bucket)>, Error> {
-        let tick_at = self.tick_at;
-
-        let end = tick_at - self.common.resolution();
-        let start = end - duration;
-
-        let (start, end) = self.range(start, end);
-
-        let start = &self.snapshots[start].buckets;
-        let end = &self.snapshots[end].buckets;
-
-        for (idx, value) in start
-            .iter()
-            .zip(end.iter())
-            .map(|(start, end)| {
-                end.wrapping_sub(*start)
-            }).enumerate()
-            {
-                self.tmp.buckets[idx].store(value, Ordering::Relaxed);
-            }
-
-        self.tmp.percentiles(percentiles)
     }
 }
 

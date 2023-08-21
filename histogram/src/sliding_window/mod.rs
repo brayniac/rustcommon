@@ -45,24 +45,65 @@ impl Builder {
         }
         self
     }
-
-    // pub fn atomic(self) -> atomic::Histogram {
-    //     atomic::Histogram::new(self)
-    // }
 }
 
 pub trait SlidingWindowHistograms {
+    fn distribution_between(
+        &self,
+        start: Instant,
+        end: Instant,
+    ) -> Result<Histogram, Error>;
+
+    fn distribution_last(
+        &self,
+        duration: Duration,
+    ) -> Result<Histogram, Error>;
+
     fn percentiles_between(
         &self,
         start: Instant,
         end: Instant,
         percentiles: &[f64],
     ) -> Result<Vec<(f64, Bucket)>, Error>;
+
     fn percentiles_last(
         &self,
         duration: Duration,
         percentiles: &[f64],
     ) -> Result<Vec<(f64, Bucket)>, Error>;
+}
+
+impl<T: _SlidingWindow> SlidingWindowHistograms for T {
+    fn distribution_between(&self, start: Instant, end: Instant) -> Result<crate::Histogram, Error> {
+        self.distribution_between(start, end)
+    }
+
+    fn distribution_last(&self, duration: Duration) -> Result<crate::Histogram, Error> {
+        let tick_at = self.tick_at();
+
+        let end = tick_at - self.common().resolution();
+        let start = end - duration;
+        self.distribution_between(start, end)
+    }
+
+    fn percentiles_between(&self, start: Instant, end: Instant, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+        let histogram = self.distribution_between(start, end)?;
+        histogram.percentiles(percentiles)
+    }
+
+    fn percentiles_last(
+        &self,
+        duration: Duration,
+        percentiles: &[f64],
+    ) -> Result<Vec<(f64, Bucket)>, Error> {
+        let tick_at = self.tick_at();
+
+        let end = tick_at - self.common().resolution();
+        let start = end - duration;
+
+        let histogram = self.distribution_between(start, end)?;
+        histogram.percentiles(percentiles)
+    }
 }
 
 pub(crate) trait _SlidingWindow {
@@ -91,9 +132,17 @@ pub(crate) trait _SlidingWindow {
         (start, end)
     }
 
+    fn tick_at(&self) -> Instant;
+
     fn max_idx(&self) -> u64 {
         self.common().num_slices() as u64 - 1
     }
+
+    fn distribution_between(
+        &self,
+        start: Instant,
+        end: Instant,
+    ) -> Result<Histogram, Error>;
 }
 
 #[derive(Clone, Copy)]
