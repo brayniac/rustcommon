@@ -10,23 +10,23 @@ pub struct Duration {
 }
 
 impl Duration {
-    pub fn from_secs(secs: u32) -> Self {
+    pub const fn from_secs(secs: u32) -> Self {
         Self { ns: secs as u64 * 1_000_000_000 }
     }
 
-    pub fn from_millis(millis: u64) -> Self {
+    pub const fn from_millis(millis: u64) -> Self {
         Self { ns: millis * 1_000_000 }
     }
 
-    pub fn from_micros(micros: u64) -> Self {
+    pub const fn from_micros(micros: u64) -> Self {
         Self { ns: micros * 1_000 }
     }
 
-    pub fn from_nanos(nanos: u64) -> Self {
+    pub const fn from_nanos(nanos: u64) -> Self {
         Self { ns: nanos }
     }
 
-    pub fn as_nanos(&self) -> u64 {
+    pub const fn as_nanos(&self) -> u64 {
         self.ns
     }
 
