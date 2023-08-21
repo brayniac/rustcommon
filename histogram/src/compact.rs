@@ -2,7 +2,7 @@ use core::sync::atomic::Ordering;
 use crate::Config;
 use crate::_Histograms;
 
-#[cfg(feature = "serde-serialize")]
+#[cfg(feature = "serde")]
 #[derive(Default, Serialize, Deserialize)]
 pub struct Histogram {
 	a: u8,
@@ -12,7 +12,7 @@ pub struct Histogram {
 	count: Vec<u64>,
 }
 
-#[cfg(not(feature = "serde-serialize"))]
+#[cfg(not(feature = "serde"))]
 pub struct Histogram {
 	a: u8,
 	b: u8,
