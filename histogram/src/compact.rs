@@ -3,7 +3,7 @@ use crate::Config;
 use crate::_Histograms;
 
 #[cfg(feature = "serde")]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 pub struct Histogram {
 	a: u8,
 	b: u8,
