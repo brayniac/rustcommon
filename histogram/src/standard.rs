@@ -36,8 +36,8 @@ pub struct Histogram {
 }
 
 impl _Histograms for Histogram {
-    fn config(&self) -> &Config {
-        &self.config
+    fn config(&self) -> Config {
+        self.config
     }
 
     fn total_count(&self) -> u128 {
@@ -89,28 +89,6 @@ impl Histogram {
         }
     }
 
-    // /// Construct a `Histogram` from it's parameters and a raw pointer.
-    // ///
-    // /// # Safety
-    // /// The pointer must be valid and outlive the `Histogram`. The allocation
-    // /// must be properly aligned and initialized. The length of the slice must
-    // /// match the number of bins for a histogram with the provided parameters.
-    // pub unsafe fn from_raw(a: u8, b: u8, n: u8, buckets: &'a mut [u64]) -> Result<Self, BuildError> {
-    //     let config = Config::new(a, b, n)?;
-
-    //     Ok(Self { buckets, config })
-    // }
-
-    // /// Consume the `Histogram` and return a raw pointer to the buckets. It is
-    // /// the caller's responsibility to free the memory allocation. If the
-    // /// `Histogram` was not created from a raw pointer, then you may use
-    // /// `Box::from_raw()` to cleanup the allocation. Otherwise it is your
-    // /// responsibility to use the appropriate cleanup for the original
-    // /// allocation.
-    // pub fn into_raw(self) -> *mut [u64] {
-    //     self.buckets
-    // }
-
     pub(crate) fn as_slice(&self) -> &[u64] {
         &self.buckets
     }
@@ -119,15 +97,6 @@ impl Histogram {
         &mut self.buckets
     }
 }
-
-// impl Drop for Histogram {
-//     fn drop(&mut self) {
-//         if !self.config.is_from_raw() {
-//             // if we allocated the buckets, we must clean them up
-//             let _buckets = unsafe { Box::from_raw(self.buckets) };
-//         }
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

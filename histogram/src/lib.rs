@@ -18,6 +18,7 @@
 //!
 
 pub mod atomic;
+pub mod compact;
 pub mod sliding_window;
 
 mod bucket;
@@ -40,7 +41,7 @@ use clocksource::precise::{AtomicInstant, Duration};
 /// A private trait that allows us to share logic across `Histogram` and
 /// `AtomicHistogram` types.
 trait _Histograms {
-    fn config(&self) -> &Config;
+    fn config(&self) -> Config;
 
     fn total_count(&self) -> u128;
 

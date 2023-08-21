@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 clocksource = { version = "0.7.0", path = "../clocksource" }
 thiserror = "*"
+serde = { version = "1.0.144", features = ["derive"], optional = true }
 
 [dev-dependencies]
 criterion = "0.4.0"
@@ -16,3 +17,6 @@ pprof = { version = "0.3", features = ["flamegraph"] }
 [[bench]]
 name = "histogram"
 harness = false
+
+[features]
+serde = ["dep:serde"]
