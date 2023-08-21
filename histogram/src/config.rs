@@ -10,7 +10,7 @@ pub struct Config {
     lower_bin_count: u32,
     upper_bin_divisions: u32,
     upper_bin_count: u32,
-    from_raw: bool,
+    n: u32,
 }
 
 impl Config {
@@ -48,12 +48,12 @@ impl Config {
             lower_bin_count,
             upper_bin_divisions,
             upper_bin_count,
-            from_raw: false,
+            n,
         })
     }
 
     pub fn params(&self) -> (u8, u8, u8) {
-        (self.a as u8, self.b as u8, self.max.ilog2() as u8)
+        (self.a as u8, self.b as u8, self.n as u8)
     }
 
     /// # Panics
@@ -107,14 +107,6 @@ impl Config {
 
     pub fn total_bins(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
-    }
-
-    pub fn from_raw(&mut self, from_raw: bool) {
-        self.from_raw = from_raw;
-    }
-
-    pub fn is_from_raw(&self) -> bool {
-        self.from_raw
     }
 }
 

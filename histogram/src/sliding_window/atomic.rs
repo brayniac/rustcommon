@@ -18,6 +18,8 @@ impl _SlidingWindow for Histogram {
         end: Instant,
     ) -> Result<crate::Histogram, Error> {
         let (a, b, n) = self.live.config().params();
+
+        println!("params: {a} {b} {n}");
         let mut histogram = crate::Histogram::new(a, b, n).unwrap();
 
         let (start, end) = self.range(start, end);
@@ -208,6 +210,13 @@ mod test {
     #[test]
     fn size() {
         assert_eq!(std::mem::size_of::<Histogram>(), 128);
+    }
+
+    #[test]
+    fn smoke() {
+        let h = Histogram::new(0, 7, 64, core::time::Duration::from_secs(60), 1).expect("couldn't make histogram");
+        let d = h.distribution_last(core::time::Duration::from_secs(1));
+
     }
 
     #[test]
