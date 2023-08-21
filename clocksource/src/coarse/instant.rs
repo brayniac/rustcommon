@@ -56,6 +56,10 @@ impl Instant {
         *self - earlier
     }
 
+    pub fn checked_duration_since(&self, earlier: Self) -> Option<Duration> {
+        self.secs.checked_sub(earlier.secs).map(|secs| Duration { secs })
+    }
+
     pub fn checked_sub(&self, duration: Duration) -> Option<Self> {
         self.secs.checked_sub(duration.secs).map(|secs| Self { secs })
     }
