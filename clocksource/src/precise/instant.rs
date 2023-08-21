@@ -60,6 +60,16 @@ impl Add<Duration> for Instant {
     }
 }
 
+impl Add<core::time::Duration> for Instant {
+    type Output = Instant;
+
+    fn add(self, rhs: core::time::Duration) -> Self::Output {
+        Instant {
+            ns: self.ns + rhs.as_nanos() as u64,
+        }
+    }
+}
+
 impl Sub<Instant> for Instant {
     type Output = Duration;
 
@@ -91,3 +101,26 @@ impl SubAssign<Duration> for Instant {
         self.ns -= rhs.ns;
     }
 }
+
+impl AddAssign<core::time::Duration> for Instant {
+    fn add_assign(&mut self, rhs: core::time::Duration) {
+        self.ns += rhs.as_nanos() as u64;
+    }
+}
+
+impl Sub<core::time::Duration> for Instant {
+    type Output = Instant;
+
+    fn sub(self, rhs: core::time::Duration) -> Self::Output {
+        Instant {
+            ns: self.ns - rhs.as_nanos() as u64,
+        }
+    }
+}
+
+impl SubAssign<core::time::Duration> for Instant {
+    fn sub_assign(&mut self, rhs: core::time::Duration) {
+        self.ns -= rhs.as_nanos() as u64;
+    }
+}
+

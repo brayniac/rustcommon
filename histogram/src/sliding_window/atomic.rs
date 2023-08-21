@@ -192,7 +192,7 @@ impl Histograms for Histogram {
     fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
         // the behavior here is to return percentiles across the full window
         let duration =
-            Duration::from_nanos(self.common.resolution().as_nanos() * self.snapshots.len() as u64);
+            core::time::Duration::from_nanos(self.common.resolution().as_nanos() * self.snapshots.len() as u64);
 
         self.percentiles_last(duration, percentiles)
     }

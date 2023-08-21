@@ -62,6 +62,16 @@ impl Add<Duration> for UnixInstant {
     }
 }
 
+impl Add<core::time::Duration> for UnixInstant {
+    type Output = UnixInstant;
+
+    fn add(self, rhs: core::time::Duration) -> Self::Output {
+        UnixInstant {
+            ns: self.ns + rhs.as_nanos() as u64,
+        }
+    }
+}
+
 impl Sub<UnixInstant> for UnixInstant {
     type Output = Duration;
 
@@ -91,5 +101,27 @@ impl Sub<Duration> for UnixInstant {
 impl SubAssign<Duration> for UnixInstant {
     fn sub_assign(&mut self, rhs: Duration) {
         self.ns -= rhs.ns;
+    }
+}
+
+impl AddAssign<core::time::Duration> for UnixInstant {
+    fn add_assign(&mut self, rhs: core::time::Duration) {
+        self.ns += rhs.as_nanos() as u64;
+    }
+}
+
+impl Sub<core::time::Duration> for UnixInstant {
+    type Output = UnixInstant;
+
+    fn sub(self, rhs: core::time::Duration) -> Self::Output {
+        UnixInstant {
+            ns: self.ns - rhs.as_nanos() as u64,
+        }
+    }
+}
+
+impl SubAssign<core::time::Duration> for UnixInstant {
+    fn sub_assign(&mut self, rhs: core::time::Duration) {
+        self.ns -= rhs.as_nanos() as u64;
     }
 }

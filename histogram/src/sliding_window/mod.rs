@@ -56,7 +56,7 @@ pub trait SlidingWindowHistograms {
 
     fn distribution_last(
         &self,
-        duration: Duration,
+        duration: core::time::Duration,
     ) -> Result<Histogram, Error>;
 
     fn percentiles_between(
@@ -68,7 +68,7 @@ pub trait SlidingWindowHistograms {
 
     fn percentiles_last(
         &self,
-        duration: Duration,
+        duration: core::time::Duration,
         percentiles: &[f64],
     ) -> Result<Vec<(f64, Bucket)>, Error>;
 }
@@ -78,7 +78,7 @@ impl<T: _SlidingWindow> SlidingWindowHistograms for T {
         self.distribution_between(start, end)
     }
 
-    fn distribution_last(&self, duration: Duration) -> Result<crate::Histogram, Error> {
+    fn distribution_last(&self, duration: core::time::Duration) -> Result<crate::Histogram, Error> {
         let tick_at = self.tick_at();
 
         let end = tick_at - self.common().resolution();
@@ -93,7 +93,7 @@ impl<T: _SlidingWindow> SlidingWindowHistograms for T {
 
     fn percentiles_last(
         &self,
-        duration: Duration,
+        duration: core::time::Duration,
         percentiles: &[f64],
     ) -> Result<Vec<(f64, Bucket)>, Error> {
         let tick_at = self.tick_at();

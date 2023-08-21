@@ -77,6 +77,16 @@ impl Add<Duration> for UnixInstant {
     }
 }
 
+impl Add<core::time::Duration> for UnixInstant {
+    type Output = UnixInstant;
+
+    fn add(self, rhs: core::time::Duration) -> Self::Output {
+        UnixInstant {
+            secs: self.secs + rhs.as_secs() as u32,
+        }
+    }
+}
+
 impl Sub<UnixInstant> for UnixInstant {
     type Output = Duration;
 
@@ -106,5 +116,27 @@ impl Sub<Duration> for UnixInstant {
 impl SubAssign<Duration> for UnixInstant {
     fn sub_assign(&mut self, rhs: Duration) {
         self.secs -= rhs.secs;
+    }
+}
+
+impl AddAssign<core::time::Duration> for UnixInstant {
+    fn add_assign(&mut self, rhs: core::time::Duration) {
+        self.secs += rhs.as_secs() as u32;
+    }
+}
+
+impl Sub<core::time::Duration> for UnixInstant {
+    type Output = UnixInstant;
+
+    fn sub(self, rhs: core::time::Duration) -> Self::Output {
+        UnixInstant {
+            secs: self.secs - rhs.as_secs() as u32,
+        }
+    }
+}
+
+impl SubAssign<core::time::Duration> for UnixInstant {
+    fn sub_assign(&mut self, rhs: core::time::Duration) {
+        self.secs -= rhs.as_secs() as u32;
     }
 }

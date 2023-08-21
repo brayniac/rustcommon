@@ -75,6 +75,16 @@ impl Add<Duration> for Instant {
     }
 }
 
+impl Add<core::time::Duration> for Instant {
+    type Output = Instant;
+
+    fn add(self, rhs: core::time::Duration) -> Self::Output {
+        Instant {
+            secs: self.secs + rhs.as_secs() as u32,
+        }
+    }
+}
+
 impl Sub<Instant> for Instant {
     type Output = Duration;
 
@@ -91,6 +101,12 @@ impl AddAssign<Duration> for Instant {
     }
 }
 
+impl AddAssign<core::time::Duration> for Instant {
+    fn add_assign(&mut self, rhs: core::time::Duration) {
+        self.secs += rhs.as_secs() as u32;
+    }
+}
+
 impl Sub<Duration> for Instant {
     type Output = Instant;
 
@@ -104,5 +120,21 @@ impl Sub<Duration> for Instant {
 impl SubAssign<Duration> for Instant {
     fn sub_assign(&mut self, rhs: Duration) {
         self.secs -= rhs.secs;
+    }
+}
+
+impl Sub<core::time::Duration> for Instant {
+    type Output = Instant;
+
+    fn sub(self, rhs: core::time::Duration) -> Self::Output {
+        Instant {
+            secs: self.secs - rhs.as_secs() as u32,
+        }
+    }
+}
+
+impl SubAssign<core::time::Duration> for Instant {
+    fn sub_assign(&mut self, rhs: core::time::Duration) {
+        self.secs -= rhs.as_secs() as u32;
     }
 }

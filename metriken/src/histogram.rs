@@ -1,3 +1,4 @@
+use histogram::sliding_window::SlidingWindowHistograms;
 use core::sync::atomic::AtomicU64;
 use histogram::Histograms;
 use crate::{Metric, Value};
@@ -109,6 +110,10 @@ impl Histogram {
 
     pub fn snapshot(&self, time: Instant) {
         self.get_or_init().snapshot(time)
+    }
+
+    pub fn distribution_last(&self, duration: Duration) -> Option<Result<histogram::Histogram, HistogramError>> {
+        self.inner.get().map(|h| h.distribution_last(duration))
     }
 }
 
