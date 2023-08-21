@@ -18,12 +18,15 @@ impl _SlidingWindow for Histogram {
         end: Instant,
     ) -> Result<crate::Histogram, Error> {
         let (a, b, n) = self.live.config().params();
-        let mut histogram = crate::Histogram::new(a, b, n ).unwrap();
+        let mut histogram = crate::Histogram::new(a, b, n).unwrap();
 
         let (start, end) = self.range(start, end);
 
         let start = &self.snapshots[start].buckets;
         let end = &self.snapshots[end].buckets;
+
+        assert_eq!(histogram.buckets.len(), start.len());
+        assert_eq!(histogram.buckets.len(), end.len());
 
         for (idx, value) in start
             .iter()
