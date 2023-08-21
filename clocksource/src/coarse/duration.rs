@@ -10,15 +10,15 @@ pub struct Duration {
 }
 
 impl Duration {
-    pub fn from_secs(secs: u32) -> Self {
+    pub const fn from_secs(secs: u32) -> Self {
         Self { secs }
     }
 
-    pub fn as_secs(&self) -> u32 {
+    pub const fn as_secs(&self) -> u32 {
         self.secs
     }
 
-    pub fn as_secs_f64(&self) -> f64 {
+    pub const fn as_secs_f64(&self) -> f64 {
         self.secs as f64
     }
 }
