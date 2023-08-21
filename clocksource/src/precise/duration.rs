@@ -30,6 +30,18 @@ impl Duration {
         self.ns
     }
 
+    pub const fn as_micros(&self) -> u64 {
+        self.ns / 1_000
+    }
+
+    pub const fn as_millis(&self) -> u64 {
+        self.ns / 1_000_000
+    }
+
+    pub const fn as_secs(&self) -> u64 {
+        self.ns / 1_000_000_000
+    }
+
     pub fn as_secs_f64(&self) -> f64 {
         (self.ns / 1_000_000_000) as f64 + (self.ns % 1_000_000_000) as f64 / 1e9
     }
