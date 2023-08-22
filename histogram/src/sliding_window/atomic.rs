@@ -18,8 +18,6 @@ impl _SlidingWindow for Histogram {
         end: Instant,
     ) -> Result<crate::Histogram, Error> {
         let (a, b, n) = self.live.config().params();
-
-        println!("params: {a} {b} {n}");
         let mut histogram = crate::Histogram::new(a, b, n).unwrap();
 
         let (start, end) = self.range(start, end);
