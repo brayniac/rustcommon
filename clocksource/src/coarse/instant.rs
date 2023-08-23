@@ -2,10 +2,20 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use super::Duration;
 
-/// An instant represents a moment in time and is taken from the system
-/// monotonic clock. Unlike `std::time::Instant` the internal representation
-/// uses only nanoseconds in a u64 field to hold the clock reading. This means
-/// that they will wrap after ~584 years.
+/// A `coarse::Instant` is a measurement of a monotonically nondecreasing
+/// clock. It is opaque and useful only with the duration types.
+///
+/// Unlike `std::time::Instant` the internal representation use only seconds in
+/// a `u32` field to hold the clock reading. This means that they will wrap
+/// after ~136 years.
+///
+/// As with `std::time::Instant`, instants are not guaranteed to be steady. They
+/// are taken from a clock which is subject to phase and frequency adjustments.
+/// This means that they may jump forward or speed up or slow down. Barring any
+/// platform bugs, it is expected that they are always monotonically
+/// nondecreasing.
+///
+/// The size of a `coarse::Instant` is always the same as a `u32`.
 #[repr(transparent)]
 #[derive(Copy, Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -136,5 +146,42 @@ impl Sub<core::time::Duration> for Instant {
 impl SubAssign<core::time::Duration> for Instant {
     fn sub_assign(&mut self, rhs: core::time::Duration) {
         self.secs -= rhs.as_secs() as u32;
+    }
+}
+
+pub struct TryFromError {
+    kind: TryFromErrorKind
+}
+
+enum TryFromErrorKind {
+    Overflow,
+}
+
+impl TryFromError {
+    const fn description(&self) -> &'static str {
+        match self.kind {
+            TryFromErrorKind::Overflow => {
+                "can not convert to UnixInstant: value is too big"
+            }
+        }
+    }
+}
+
+impl core::fmt::Display for TryFromError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.description().fmt(f)
+    }
+}
+
+impl TryFrom<crate::precise::Instant> for Instant {
+    type Error = TryFromError;
+
+    fn try_from(other: crate::precise::Instant) -> Result<Self, Self::Error> {
+        let other = other.ns / crate::precise::Duration::SECOND.as_nanos();
+        if other > u32::MAX as u64 {
+            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+        } else {
+            Ok(Self { secs: other as u32 })
+        }
     }
 }

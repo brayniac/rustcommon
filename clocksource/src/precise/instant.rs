@@ -2,10 +2,21 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use super::Duration;
 
-/// An instant represents a moment in time and is taken from the system
-/// monotonic clock. Unlike `std::time::Instant` the internal representation
-/// uses only nanoseconds in a u64 field to hold the clock reading. This means
-/// that they will wrap after ~584 years.
+/// A measurement of a monotonically nodecreasing clock in nanoseconds.
+///
+/// It is opaque and useful only with the duration types.
+///
+/// Unlike `std::time::Instant` the internal representation use only nanoseconds
+/// in a `u64` field to hold the clock reading. This means that they will wrap
+/// after ~584 years.
+///
+/// As with `std::time::Instant`, instants are not guaranteed to be steady. They
+/// are taken from a clock which is subject to phase and frequency adjustments.
+/// This means that they may jump forward or speed up or slow down. Barring any
+/// platform bugs, it is expected that they are always monotonically
+/// nondecreasing.
+///
+/// The size of a `precise::Instant` is always the same as a `u64`.
 #[repr(transparent)]
 #[derive(Copy, Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -124,3 +135,8 @@ impl SubAssign<core::time::Duration> for Instant {
     }
 }
 
+impl From<crate::coarse::Instant> for Instant {
+    fn from(other: crate::coarse::Instant) -> Self {
+        Self { ns: other.secs as u64 * super::Duration::NANOSECOND.as_nanos() }
+    }
+}

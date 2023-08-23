@@ -1,3 +1,5 @@
+//! Human readable datetimes.
+
 use core::fmt::Display;
 use time::OffsetDateTime;
 

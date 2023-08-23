@@ -1,6 +1,8 @@
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, Sub, SubAssign};
 
-/// An duration represents a span of time. Unlike `std::time::Instant` the
+/// A duration measured in seconds.
+///
+/// A duration represents a span of time. Unlike `std::time::Instant` the
 /// internal representation uses only nanoseconds in a u64 field to represent
 /// the span of time. This means that the max duration is ~584 years.
 #[repr(transparent)]
@@ -10,14 +12,23 @@ pub struct Duration {
 }
 
 impl Duration {
+    /// The maximum representable `coarse::Duration`.
+    pub const MAX: Duration = Duration { secs: u32::MAX };
+
+    /// One second as a `coarse::Duration`.
+    pub const SECOND: Duration = Duration::from_secs(1);
+
+    /// Creates a new `Duration` from the specified number of whole seconds.
     pub const fn from_secs(secs: u32) -> Self {
         Self { secs }
     }
 
+    /// Returns the number of whole seconds contained by this `Duration`.
     pub const fn as_secs(&self) -> u32 {
         self.secs
     }
 
+    /// Returns the number of seconds contained by this `Duration` as `f64`.
     pub const fn as_secs_f64(&self) -> f64 {
         self.secs as f64
     }
@@ -90,6 +101,42 @@ impl Rem<Duration> for Duration {
     fn rem(self, rhs: Duration) -> Self::Output {
         Duration {
             secs: self.secs % rhs.secs,
+        }
+    }
+}
+
+pub struct TryFromError {
+    kind: TryFromErrorKind
+}
+
+enum TryFromErrorKind {
+    Overflow,
+}
+
+impl TryFromError {
+    const fn description(&self) -> &'static str {
+        match self.kind {
+            TryFromErrorKind::Overflow => {
+                "can not convert to Duration: value is too big"
+            }
+        }
+    }
+}
+
+impl core::fmt::Display for TryFromError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.description().fmt(f)
+    }
+}
+
+impl TryFrom<core::time::Duration> for Duration {
+    type Error = TryFromError;
+
+    fn try_from(other: core::time::Duration) -> Result<Self, Self::Error> {
+        if other.as_secs() > u32::MAX as u64 {
+            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+        } else {
+            Ok(Self::from_secs(other.as_secs() as u32))
         }
     }
 }

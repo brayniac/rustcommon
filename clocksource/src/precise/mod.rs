@@ -1,3 +1,8 @@
+//! Precise times and durations using 64bit primitives and whole nanoseconds.
+//!
+//! Unlike `std::time`, these types always have a fixed size representation and
+//! also includes atomic types.
+
 mod atomic_duration;
 mod atomic_instant;
 mod atomic_unix_instant;
