@@ -14,7 +14,7 @@ pub struct Histogram {
     b: u8,
     n: u8,
     index: Vec<usize>,
-    count: Vec<u64>,
+    count: Vec<u32>,
 }
 
 /// A compact histogram which stores bucket indices and counts to efficiently
@@ -25,7 +25,7 @@ pub struct Histogram {
     b: u8,
     n: u8,
     index: Vec<usize>,
-    count: Vec<u64>,
+    count: Vec<u32>,
 }
 
 impl _Histograms for Histogram {
@@ -37,7 +37,7 @@ impl _Histograms for Histogram {
         self.count.iter().map(|c| *c as u128).sum()
     }
 
-    fn get_count(&self, index: usize) -> u64 {
+    fn get_count(&self, index: usize) -> u32 {
         if let Ok(index) = self.index.binary_search(&index) {
             *self.count.get(index).unwrap_or(&0)
         } else {

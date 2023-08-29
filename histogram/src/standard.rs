@@ -7,7 +7,7 @@ use crate::{Bucket, BuildError, Config, Error, _Histograms};
 ///
 /// Internally it uses 64bit counters to store the counts for each bucket.
 pub struct Histogram {
-    pub(crate) buckets: Box<[u64]>,
+    pub(crate) buckets: Box<[u32]>,
     pub(crate) config: Config,
 }
 
@@ -20,7 +20,7 @@ impl _Histograms for Histogram {
         self.buckets.iter().map(|v| *v as u128).sum()
     }
 
-    fn get_count(&self, index: usize) -> u64 {
+    fn get_count(&self, index: usize) -> u32 {
         self.buckets[index]
     }
 }
@@ -49,7 +49,7 @@ impl Histogram {
 
     /// Add some count to the counter for the bucket corresponding to the
     /// provided value
-    pub fn add(&mut self, value: u64, count: u64) -> Result<(), Error> {
+    pub fn add(&mut self, value: u64, count: u32) -> Result<(), Error> {
         let index = self.config.value_to_index(value)?;
         self.buckets[index] = self.buckets[index].wrapping_add(count);
         Ok(())
@@ -57,18 +57,18 @@ impl Histogram {
 
     /// Creates a new `Histogram` from the `Config`.
     pub(crate) fn from_config(config: Config) -> Self {
-        let buckets: Box<[u64]> = vec![0; config.total_bins()].into();
+        let buckets: Box<[u32]> = vec![0; config.total_bins()].into();
 
         Self { buckets, config }
     }
 
     /// Get a reference to the raw counters.
-    pub fn as_slice(&self) -> &[u64] {
+    pub fn as_slice(&self) -> &[u32] {
         &self.buckets
     }
 
     /// Get a mutable reference to the raw counters.
-    pub fn as_mut_slice(&mut self) -> &mut [u64] {
+    pub fn as_mut_slice(&mut self) -> &mut [u32] {
         &mut self.buckets
     }
 

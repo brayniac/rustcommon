@@ -5,14 +5,14 @@
 /// that fall into that range.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Bucket {
-    pub(crate) count: u64,
+    pub(crate) count: u32,
     pub(crate) lower: u64,
     pub(crate) upper: u64,
 }
 
 impl Bucket {
     /// Returns the number of observations within the bucket's range.
-    pub fn count(&self) -> u64 {
+    pub fn count(&self) -> u32 {
         self.count
     }
 

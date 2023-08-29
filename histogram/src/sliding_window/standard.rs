@@ -77,7 +77,7 @@ impl Histogram {
     /// Get access to the raw buckets in the live histogram.
     ///
     /// This is useful if you need access to the raw bucket counts.
-    pub fn as_slice(&self) -> &[u64] {
+    pub fn as_slice(&self) -> &[u32] {
         self.live.as_slice()
     }
 
@@ -85,7 +85,7 @@ impl Histogram {
     ///
     /// This is useful if you are planning to update from some external source
     /// that uses the same bucketing strategy. Be sure to use with `snapshot()`.
-    pub fn as_mut_slice(&mut self) -> &mut [u64] {
+    pub fn as_mut_slice(&mut self) -> &mut [u32] {
         self.live.as_mut_slice()
     }
 
@@ -94,7 +94,7 @@ impl Histogram {
     /// This is a convenience method that uses `Instant::now()` as the time
     /// associated with the observation. If you already have a timestamp, you
     /// may wish to use the `add_at` instead.
-    pub fn add(&mut self, value: u64, count: u64) -> Result<(), Error> {
+    pub fn add(&mut self, value: u64, count: u32) -> Result<(), Error> {
         self.add_at(Instant::now(), value, count)
     }
 
@@ -135,7 +135,7 @@ impl Histogram {
     /// If the instant is within the window, the increment will be attributed to
     /// the most recent time slide regardless of the true position within the
     /// sliding window.
-    pub fn add_at(&mut self, instant: Instant, value: u64, count: u64) -> Result<(), Error> {
+    pub fn add_at(&mut self, instant: Instant, value: u64, count: u32) -> Result<(), Error> {
         self.tick_to(instant);
 
         // and finally record into the live histogram

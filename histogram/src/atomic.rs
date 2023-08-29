@@ -1,15 +1,15 @@
 //! A basic histogram using atomic counters.
 
 use crate::{Bucket, BuildError, Config, Error, _Histograms};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 
 /// A simple concurrent histogram that can be used to track the distribution of
-/// occurrences of quantized u64 values.
+/// occurrences of quantized u32 values.
 ///
-/// Internally it uses 64bit atomic counters to store the counts for each
+/// Internally it uses 32bit atomic counters to store the counts for each
 /// bucket.
 pub struct Histogram {
-    pub(crate) buckets: Box<[AtomicU64]>,
+    pub(crate) buckets: Box<[AtomicU32]>,
     pub(crate) config: Config,
 }
 
@@ -18,7 +18,7 @@ impl _Histograms for Histogram {
         self.config
     }
 
-    fn get_count(&self, index: usize) -> u64 {
+    fn get_count(&self, index: usize) -> u32 {
         self.buckets[index].load(Ordering::Relaxed)
     }
 
@@ -54,7 +54,7 @@ impl Histogram {
 
     /// Add some count to the counter for the bucket corresponding to the
     /// provided value.
-    pub fn add(&self, value: u64, count: u64) -> Result<(), Error> {
+    pub fn add(&self, value: u64, count: u32) -> Result<(), Error> {
         let index = self.config.value_to_index(value)?;
         self.buckets[index].fetch_add(count, Ordering::Relaxed);
         Ok(())
@@ -63,7 +63,7 @@ impl Histogram {
     /// Creates a new `Histogram` from the `Config`.
     pub(crate) fn from_config(config: Config) -> Self {
         let mut buckets = Vec::with_capacity(config.total_bins());
-        buckets.resize_with(config.total_bins(), || AtomicU64::new(0));
+        buckets.resize_with(config.total_bins(), || AtomicU32::new(0));
 
         Self {
             buckets: buckets.into(),
@@ -72,7 +72,7 @@ impl Histogram {
     }
 
     /// Get a reference to the raw counters.
-    pub fn as_slice(&self) -> &[AtomicU64] {
+    pub fn as_slice(&self) -> &[AtomicU32] {
         &self.buckets
     }
 

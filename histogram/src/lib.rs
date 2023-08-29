@@ -1,4 +1,4 @@
-//! This crate contains a collection of histogram data structures to help count
+//! This crate contains a collection of histogram data structures to count
 //! occurrences of values and report on their distribution.
 //!
 //! There are several implementations to choose from, with each targeting
@@ -51,7 +51,7 @@ trait _Histograms {
 
     fn total_count(&self) -> u128;
 
-    fn get_count(&self, index: usize) -> u64;
+    fn get_count(&self, index: usize) -> u32;
 
     fn get_bucket(&self, index: usize) -> Option<Bucket> {
         if index >= self.config().total_bins() {
