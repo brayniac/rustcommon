@@ -5,14 +5,15 @@ use time::OffsetDateTime;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
-	dt: OffsetDateTime,
+    dt: OffsetDateTime,
 }
 
 impl Display for DateTime {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-		let date = self.dt.date();
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let date = self.dt.date();
         let time = self.dt.time();
-        write!(f,
+        write!(
+            f,
             "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}+00:00",
             date.year(),
             date.month() as u8,

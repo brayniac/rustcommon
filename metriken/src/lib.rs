@@ -103,7 +103,7 @@ pub use crate::counter::Counter;
 pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::formatter::{default_formatter, Format};
 pub use crate::gauge::Gauge;
-pub use crate::histogram::Histogram;
+pub use crate::histogram::{Histogram, Instant, UnixInstant};
 pub use crate::lazy::Lazy;
 pub use crate::metadata::{Metadata, MetadataIter};
 pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};

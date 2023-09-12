@@ -1,16 +1,14 @@
-use histogram::sliding_window::SlidingWindowHistograms;
+use std::ops::Range;
 use core::sync::atomic::AtomicU64;
-use histogram::Histograms;
 use crate::{Metric, Value};
-
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use histogram::sliding_window::atomic::Histogram as AtomicHistogram;
-use histogram::Instant;
+use histogram::SlidingWindowHistogram as _Histogram;
 
-pub use ::histogram::Bucket;
 pub use ::histogram::Error as HistogramError;
+pub use ::histogram::{Bucket, Instant, Snapshot, UnixInstant};
+
 // pub use ::histogram::sliding_window::atomic::Iter as HistogramIter;
 
 /// A heatmap holds counts for quantized values across a period of time. It can
@@ -26,7 +24,7 @@ pub use ::histogram::Error as HistogramError;
 /// a None variant until some write has occured. This also means they occupy
 /// very little space until they are initialized.
 pub struct Histogram {
-    inner: OnceLock<AtomicHistogram>,
+    inner: OnceLock<_Histogram>,
     a: u8,
     b: u8,
     n: u8,
@@ -71,10 +69,10 @@ impl Histogram {
     /// a value in the range `0.0..=100.0`.
     ///
     /// `None` will be returned if the heatmap has not been written to.
-    pub fn percentile(&self, percentile: f64) -> Option<Result<Bucket, HistogramError>> {
+    pub fn percentile(&self, percentile: f64, range: Range<UnixInstant>) -> Option<Result<Bucket, HistogramError>> {
         self.inner
             .get()
-            .map(|heatmap| heatmap.percentile(percentile))
+            .map(|h| h.snapshot_between(range)?.percentile(percentile))
     }
 
     /// Increments a time-value pair by one.
@@ -91,9 +89,9 @@ impl Histogram {
     //     self.inner.get().map(|heatmap| heatmap.iter())
     // }
 
-    fn get_or_init(&self) -> &AtomicHistogram {
+    fn get_or_init(&self) -> &_Histogram {
         self.inner.get_or_init(|| {
-            AtomicHistogram::new(
+            _Histogram::new(
                 self.a,
                 self.b,
                 self.n,
@@ -108,12 +106,8 @@ impl Histogram {
         self.get_or_init().as_slice()
     }
 
-    pub fn snapshot(&self, time: Instant) {
-        self.get_or_init().snapshot(time)
-    }
-
-    pub fn distribution_last(&self, duration: Duration) -> Option<Result<histogram::Histogram, HistogramError>> {
-        self.inner.get().map(|h| h.distribution_last(duration))
+    pub fn snapshot_between(&self, range: Range<UnixInstant>) -> Option<Result<histogram::Snapshot, HistogramError>> {
+        self.inner.get().map(|h| h.snapshot_between(range))
     }
 }
 
