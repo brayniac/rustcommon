@@ -75,6 +75,17 @@ impl Histogram {
             .map(|h| h.snapshot_between(range)?.percentile(percentile))
     }
 
+    /// Returns the `Bucket` (if any) where the requested percentile falls
+    /// within the value range for the bucket.Percentiles should be expressed as
+    /// a value in the range `0.0..=100.0`.
+    ///
+    /// `None` will be returned if the heatmap has not been written to.
+    pub fn percentiles(&self, percentiles: &[f64], range: Range<UnixInstant>) -> Option<Result<Vec<(f64, Bucket)>, HistogramError>> {
+        self.inner
+            .get()
+            .map(|h| h.snapshot_between(range)?.percentiles(percentiles))
+    }
+
     /// Increments a time-value pair by one.
     pub fn increment(&self, time: Instant, value: u64) -> Result<(), HistogramError> {
         self.add(time, value, 1)
