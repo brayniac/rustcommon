@@ -1,153 +1,38 @@
-//! This crate contains a collection of histogram datastructures to help count
-//! occurances of values and report on their distribution.
+//! This crate contains the implementations of a base-2 bucketed histogram as
+//! either a free-running histogram, or as a sliding window histogram.
 //!
-//! There are several implementations to choose from, with each targeting
-//! a specific use-case.
+//! The free-running histogram is implemented without atomics and can be used in
+//! cases where a single threaded access to the histogram is desired. Typically,
+//! this type would be used when you want latched histograms or want a single
+//! histogram to cover a full data set.
 //!
-//! All the implementations share the same bucketing / binning strategy and
-//! allow you to store values across a wide range with minimal loss of
-//! precision. We do this by using linear buckets for the smaller values in the
-//! histogram and transition to logarithmic buckets with linear subdivisions for
-//! buckets that contain larger values. The indexing strategy is designed to be
-//! efficient, allowing for blazingly fast increments.
-//!
-//! * `Histogram` - when a very fast histogram is all you need
-//! * `AtomicHistogram` - when you need to share a histogram across threads
-//! * `SlidingWindowHistogram` - if you care about data points within a bounded
-//!    range of time, with old values automatically dropping out
-//!
-
-pub mod atomic;
-pub mod compact;
-pub mod sliding_window;
+//! A sliding window histogram maintains counts for quantized values across a
+//! window of time. They are useful for metrics use-cases where you wish to
+//! report on the distribution of values across some recent time period. For
+//! example a latency distribution for all operations in the past minute. At its
+//! core, this implementation is a ring buffer of histograms where each
+//! histogram stores a snapshot of the live histogram at some point in time.
+//! Each of these histograms uses a base-2 bucketing strategy with a linear and
+//! logarithmic region. The linear region contains buckets that are fixed-width.
+//! The logarithmic region contains segments that span powers of two. Each
+//! logarithmic segment is sub-divided linearly into some number of buckets.
 
 mod bucket;
 mod config;
 mod errors;
+mod sliding_window;
+mod snapshot;
 mod standard;
 
 pub use clocksource::precise::{Instant, UnixInstant};
 
 pub use bucket::Bucket;
 pub use errors::{BuildError, Error};
+pub use sliding_window::{Builder as SlidingWindowBuilder, Histogram as SlidingWindowHistogram};
+pub use snapshot::Snapshot;
 pub use standard::Histogram;
 
-use core::sync::atomic::Ordering;
-
 use crate::config::Config;
-
 use clocksource::precise::{AtomicInstant, Duration};
-
-/// A private trait that allows us to share logic across `Histogram` and
-/// `AtomicHistogram` types.
-trait _Histograms {
-    fn config(&self) -> Config;
-
-    fn total_count(&self) -> u128;
-
-    fn get_count(&self, index: usize) -> u64;
-
-    fn get_bucket(&self, index: usize) -> Bucket {
-        Bucket {
-            count: self.get_count(index),
-            lower: self.config().index_to_lower_bound(index),
-            upper: self.config().index_to_upper_bound(index),
-        }
-    }
-}
-
-/// A histogram stores counts for values and produces summary statistics about
-/// the distribution of values.
-pub trait Histograms {
-    fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        self.percentiles(&[percentile])
-            .map(|v| v.first().unwrap().1)
-    }
-
-    fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error>;
-}
-
-impl<T: _Histograms> Histograms for T {
-    fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
-        // get the total count across all buckets as a u64
-        let total: u128 = self.total_count();
-
-        // if the histogram is empty, then we should return an error
-        if total == 0_u128 {
-            // TODO(brian): this should return an error =)
-            return Err(Error::Empty);
-        }
-
-        // sort the requested percentiles so we can find them in a single pass
-        let mut percentiles = percentiles.to_vec();
-        percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let mut result = Vec::new();
-
-        let mut have = 0_u128;
-        let mut percentile_idx = 0_usize;
-        let mut current_idx = 0_usize;
-        let mut max_idx = 0_usize;
-
-        // outer loop walks through the requested percentiles
-        'outer: loop {
-            // if we have all the requested percentiles, return the result
-            if percentile_idx >= percentiles.len() {
-                return Ok(result);
-            }
-
-            // calculate the count we need to have for the requested percentile
-            let percentile = percentiles[percentile_idx];
-            let needed = (percentile / 100.0 * total as f64).ceil() as u128;
-
-            // if the count is already that high, push to the results and
-            // continue onto the next percentile
-            if have >= needed {
-                result.push((percentile, self.get_bucket(current_idx)));
-                percentile_idx += 1;
-                continue;
-            }
-
-            // the inner loop walks through the buckets
-            'inner: loop {
-                // if we've run out of buckets, break the outer loop
-                if current_idx >= self.config().total_bins() {
-                    break 'outer;
-                }
-
-                // get the current count for the current bucket
-                let current_count = self.get_count(current_idx);
-
-                // track the highest index with a non-zero count
-                if current_count > 0 {
-                    max_idx = current_idx;
-                }
-
-                // increment what we have by the current bucket count
-                have += current_count as u128;
-
-                // if this is enough for the requested percentile, push to the
-                // results and break the inner loop to move onto the next
-                // percentile
-                if have >= needed {
-                    result.push((percentile, self.get_bucket(current_idx)));
-                    percentile_idx += 1;
-                    current_idx += 1;
-                    break 'inner;
-                }
-
-                // increment the current_idx so we continue from the next bucket
-                current_idx += 1;
-            }
-        }
-
-        // fill the remaining percentiles with the highest non-zero bucket's
-        // value. this is possible if the histogram has been modified while we
-        // are still iterating.
-        for percentile in percentiles.iter().skip(result.len()) {
-            result.push((*percentile, self.get_bucket(max_idx)));
-        }
-
-        Ok(result)
-    }
-}
+use core::ops::{Range, RangeInclusive};
+use core::sync::atomic::Ordering;

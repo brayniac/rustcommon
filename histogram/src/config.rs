@@ -1,20 +1,25 @@
+//! The configuration of a histogram which determines the buckets and how to
+//! convert a value to a bucket index and vice versa.
+
 use super::{BuildError, Error};
+use crate::RangeInclusive;
 
 #[derive(Clone, Copy)]
-pub struct Config {
+pub(crate) struct Config {
     max: u64,
-    a: u32,
-    b: u32,
+    a: u8,
+    b: u8,
+    n: u8,
+    cutoff_power: u8,
     cutoff_value: u64,
-    cutoff_power: u32,
     lower_bin_count: u32,
     upper_bin_divisions: u32,
     upper_bin_count: u32,
-    n: u32,
 }
 
 impl Config {
     pub fn new(a: u8, b: u8, n: u8) -> Result<Self, BuildError> {
+        // temporarily convert these to wider types
         let a: u32 = a.into();
         let b: u32 = b.into();
         let n: u32 = n.into();
@@ -29,6 +34,21 @@ impl Config {
             return Err(BuildError::MaxPowerTooLow);
         }
 
+        // the cutoff is the point at which the linear range divisions and the
+        // logarithmic range subdivisions diverge.
+        //
+        // for example:
+        // when a = 0, the linear range has bins with width 1.
+        // if b = 7 the logarithmic range has 128 subdivisions.
+        // this means that for 0..128 we must be representing the values exactly
+        // but we also represent 128..256 exactly since the subdivisions divide
+        // that range into bins with the same width as the linear portion.
+        //
+        // therefore our cutoff power = a + b + 1
+
+        // note: because a + b must be less than n which is a u8, a + b + 1 must
+        // be less than or equal to u8::MAX. This means our cutoff power will
+        // always fit in a u8
         let cutoff_power = a + b + 1;
         let cutoff_value = 2_u64.pow(cutoff_power);
         let lower_bin_width = 2_u32.pow(a);
@@ -37,28 +57,29 @@ impl Config {
         let max = if n == 64 { u64::MAX } else { 2_u64.pow(n) };
 
         let lower_bin_count = (cutoff_value / lower_bin_width as u64) as u32;
-        let upper_bin_count = (n - (a + b + 1)) * upper_bin_divisions;
+        let upper_bin_count = (n - cutoff_power) * upper_bin_divisions;
 
         Ok(Self {
             max,
-            a,
-            b,
-            cutoff_power,
+            a: a as u8,
+            b: b as u8,
+            n: n as u8,
+            cutoff_power: cutoff_power as u8,
             cutoff_value,
             lower_bin_count,
             upper_bin_divisions,
             upper_bin_count,
-            n,
         })
     }
 
+    /// Returns the parameters `a`, `b`, and `n` that were used to create the
+    /// config.
     pub fn params(&self) -> (u8, u8, u8) {
-        (self.a as u8, self.b as u8, self.n as u8)
+        (self.a, self.b, self.n)
     }
 
-    /// # Panics
-    /// This function will panic if the value is larger than the max configured
-    /// value for this histogram.
+    /// Converts a value to a bucket index. Returns an error if the value is
+    /// outside of the range for the config.
     pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
         if value < self.cutoff_value {
             return Ok((value >> self.a) as usize);
@@ -69,13 +90,14 @@ impl Config {
         }
 
         let power = 63 - value.leading_zeros();
-        let log_bin = power - self.cutoff_power;
-        let offset = (value - (1 << power)) >> (power - self.b);
+        let log_bin = power - self.cutoff_power as u32;
+        let offset = (value - (1 << power)) >> (power - self.b as u32);
 
         Ok((self.lower_bin_count + log_bin * self.upper_bin_divisions + offset as u32) as usize)
     }
 
-    pub fn index_to_lower_bound(&self, index: usize) -> u64 {
+    /// Convert a bucket index to a lower bound.
+    fn index_to_lower_bound(&self, index: usize) -> u64 {
         let a = self.a as u64;
         let b = self.b as u64;
         let g = index as u64 >> self.b;
@@ -88,7 +110,8 @@ impl Config {
         }
     }
 
-    pub fn index_to_upper_bound(&self, index: usize) -> u64 {
+    /// Convert a bucket index to a upper inclusive bound.
+    fn index_to_upper_bound(&self, index: usize) -> u64 {
         if index as u32 == self.lower_bin_count + self.upper_bin_count - 1 {
             return self.max;
         }
@@ -105,6 +128,12 @@ impl Config {
         }
     }
 
+    /// Convert a bucket index to a range.
+    pub fn index_to_range(&self, index: usize) -> RangeInclusive<u64> {
+        self.index_to_lower_bound(index)..=self.index_to_upper_bound(index)
+    }
+
+    /// Return the total number of bins (buckets) needed for this config.
     pub fn total_bins(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
     }
@@ -116,7 +145,7 @@ mod tests {
 
     #[test]
     fn sizes() {
-        assert_eq!(std::mem::size_of::<Config>(), 48);
+        assert_eq!(std::mem::size_of::<Config>(), 32);
     }
 
     #[test]
