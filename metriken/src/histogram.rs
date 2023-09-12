@@ -2,12 +2,11 @@ use std::ops::Range;
 use core::sync::atomic::AtomicU64;
 use crate::{Metric, Value};
 use std::sync::OnceLock;
-use std::time::Duration;
 
 use histogram::SlidingWindowHistogram as _Histogram;
 
 pub use ::histogram::Error as HistogramError;
-pub use ::histogram::{Bucket, Instant, Snapshot, UnixInstant};
+pub use ::histogram::{Bucket, Duration, Instant, Snapshot, UnixInstant};
 
 // pub use ::histogram::sliding_window::atomic::Iter as HistogramIter;
 
@@ -28,7 +27,7 @@ pub struct Histogram {
     a: u8,
     b: u8,
     n: u8,
-    resolution: Duration,
+    resolution: core::time::Duration,
     slices: usize,
 }
 
@@ -53,7 +52,7 @@ impl Histogram {
     /// - `resolution` - sets the resolution in the time domain. The times of
     /// observations are quantized into slices of this duration. Entire slices
     /// are aged out of the heatmap as necessary.
-    pub const fn new(a: u8, b: u8, n: u8, resolution: Duration, slices: usize) -> Self {
+    pub const fn new(a: u8, b: u8, n: u8, resolution: core::time::Duration, slices: usize) -> Self {
         Self {
             a,
             b,
