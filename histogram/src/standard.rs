@@ -73,6 +73,7 @@ impl Histogram {
     pub(crate) fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
         // if the histogram is empty, then we should return an error
         if self.total_count == 0_u128 {
+            eprintln!("empty");
             return Err(Error::Empty);
         }
 
@@ -83,6 +84,7 @@ impl Histogram {
         // validate all the percentiles
         for percentile in &percentiles {
             if !(0.0..=100.0).contains(percentile) {
+                eprintln!("invalid percentile");
                 return Err(Error::InvalidPercentile);
             }
         }
@@ -90,7 +92,7 @@ impl Histogram {
         let mut bucket_idx = 0;
         let mut partial_sum = self.buckets[bucket_idx] as u128;
 
-        let result = percentiles
+        let result: Vec<(f64, Bucket)> = percentiles
             .iter()
             .filter_map(|percentile| {
                 let count = (percentile / 100.0 * self.total_count as f64).ceil() as u128;
@@ -122,6 +124,10 @@ impl Histogram {
                 None
             })
             .collect();
+
+        if result.len() != percentiles.len() {
+            eprintln!("error getting all percentiles");
+        }
 
         Ok(result)
     }
