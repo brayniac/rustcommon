@@ -248,7 +248,6 @@ impl Histogram {
         let tick_at = self.tick_at();
 
         if range.start < self.started {
-            eprintln!("start is before histogram first started");
             return Err(Error::OutOfSlidingWindow);
         }
 
@@ -259,8 +258,6 @@ impl Histogram {
         // lookup snapshot information
         let start = self.snapshot_info(start, tick_at)?;
         let end = self.snapshot_info(end, tick_at)?;
-
-        eprintln!("calculating snapshot between {} and {}", start.index, end.index);
 
         let mut total_count = 0_u128;
 
@@ -275,8 +272,6 @@ impl Histogram {
                 count
             })
             .collect();
-
-        eprintln!("total count: {total_count}");
 
         let histogram = crate::Histogram {
             config: self.config,
@@ -351,7 +346,6 @@ impl Histogram {
     // structure will tick forward next.
     fn snapshot_info(&self, instant: Instant, tick_at: Instant) -> Result<SnapshotInfo, Error> {
         if instant < self.tick_origin {
-            eprintln!("instant before tick origin");
             return Err(Error::OutOfSlidingWindow);
         }
 
@@ -359,12 +353,10 @@ impl Histogram {
         let window_start = window_end - self.span;
 
         if instant < window_start {
-            eprintln!("instant before window start");
             return Err(Error::OutOfSlidingWindow);
         }
 
         if instant > window_end {
-            eprintln!("instant beyond window end");
             return Err(Error::OutOfSlidingWindow);
         }
 
