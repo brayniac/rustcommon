@@ -95,7 +95,7 @@ impl Histogram {
             .filter_map(|percentile| {
                 let count = (percentile / 100.0 * self.total_count as f64).ceil() as u128;
 
-                while bucket_idx < (self.buckets.len() - 1) {
+                loop {
                     // found the matching bucket index for this percentile
                     if partial_sum >= count {
                         return Some((
@@ -107,10 +107,17 @@ impl Histogram {
                         ));
                     }
 
+                    // check if we have reached the end of the buckets
+                    if bucket_idx == (self.buckets.len() - 1) {
+                        break;
+                    }
+
                     // otherwise, increment the bucket index, partial sum, and loop
                     bucket_idx += 1;
                     partial_sum += self.buckets[bucket_idx] as u128;
                 }
+
+                eprintln!("bucket for percentile not found");
 
                 None
             })
