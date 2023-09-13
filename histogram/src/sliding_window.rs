@@ -260,7 +260,7 @@ impl Histogram {
         let start = self.snapshot_info(start, tick_at)?;
         let end = self.snapshot_info(end, tick_at)?;
 
-        eprintln!("calculating snapshot...");
+        eprintln!("calculating snapshot between {} and {}", start.index, end.index);
 
         let mut total_count = 0_u128;
 
