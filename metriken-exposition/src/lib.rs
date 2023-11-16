@@ -124,22 +124,28 @@ impl Snapshots {
     }
 }
 
-impl Default for HttpServer {
-    fn default() -> Self {
-        Self::new()
+pub struct HttpServerBuilder {
+    config: Config,
+}
+
+impl HttpServerBuilder {
+    pub fn new(addr: SocketAddr) -> Self {
+        Self { config: Config {
+                address: addr,
+                percentiles: DEFAULT_PERCENTILES.iter().map(|(l, v)| (l.to_string(), *v)).collect(),
+                prometheus: PrometheusConfig { histograms: true, histogram_grouping_power: 5 },
+            }
+        }
+    }
+
+    pub fn build(self) -> HttpServer {
+        HttpServer {
+            config: self.config.into(),
+        }
     }
 }
 
 impl HttpServer {
-    pub fn new() -> Self {
-        Self { config: Config {
-                address: "0.0.0.0:4242".parse().unwrap(),
-                percentiles: DEFAULT_PERCENTILES.iter().map(|(l, v)| (l.to_string(), *v)).collect(),
-                prometheus: PrometheusConfig { histograms: true, histogram_grouping_power: 5 },
-            }.into()
-        }
-    }
-
     /// HTTP exposition
     pub async fn serve(&self) {
         let http = filters::http(self.config.clone());
