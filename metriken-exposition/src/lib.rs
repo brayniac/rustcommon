@@ -141,7 +141,7 @@ impl HttpServer {
     }
 
     /// HTTP exposition
-    pub async fn http(&self) {
+    pub async fn serve(&self) {
         let http = filters::http(self.config.clone());
 
         warp::serve(http).run(self.config.address).await;
